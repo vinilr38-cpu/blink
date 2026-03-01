@@ -93,6 +93,12 @@ export function ParticipantView() {
                   await webrtcRef.current.handleIceCandidate(sessionId, message.data)
                 }
                 break
+
+              case 'session-ended':
+                toast.error('The session has been ended by the host')
+                cleanup()
+                setStage('join')
+                break
             }
           } catch (error) {
             console.error('Error handling message:', error)
@@ -124,7 +130,7 @@ export function ParticipantView() {
     try {
       // Find session by code
       const sessions = await blink.db.sessions.list({
-        where: { sessionCode, isActive: "1" },
+        where: { sessionCode, isActive: 1 },
         limit: 1
       })
 

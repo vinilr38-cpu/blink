@@ -35,7 +35,7 @@ export function HostDashboard() {
 
         // Load participants
         const parts = await blink.db.participants.list({
-          where: { sessionId, isConnected: "1" },
+          where: { sessionId, isConnected: 1 },
           orderBy: { joinedAt: 'asc' }
         })
         if (mounted) setParticipants(parts)
@@ -166,7 +166,7 @@ export function HostDashboard() {
     if (!sessionId) return
     try {
       const parts = await blink.db.participants.list({
-        where: { sessionId, isConnected: "1" },
+        where: { sessionId, isConnected: 1 },
         orderBy: { joinedAt: 'asc' }
       })
       setParticipants(parts)
@@ -292,26 +292,45 @@ export function HostDashboard() {
 
   const endSession = async () => {
     try {
+      // 1. Notify all participants
+      try {
+        await channelRef.current?.publish('webrtc', {
+          type: 'session-ended',
+          from: sessionId!,
+          to: 'all',
+          data: {}
+        }, { userId: sessionId! })
+      } catch (e) {
+        console.error('Failed to notify participants:', e)
+      }
+
+      // 2. Update session status
       await blink.db.sessions.update(sessionId!, {
         isActive: 0,
         endedAt: new Date().toISOString()
       })
 
-      // Disconnect all participants
-      await blink.db.sql(`
-        UPDATE participants 
-        SET is_connected = 0 
-        WHERE session_id = ?
-      `, [sessionId])
+      // 3. Disconnect all participants using object API
+      const activeParticipants = participants.filter(p => Number(p.isConnected) === 1)
+      for (const p of activeParticipants) {
+        try {
+          await blink.db.participants.update(p.id, { isConnected: 0 })
+        } catch (e) {
+          console.error(`Failed to disconnect participant ${p.id}:`, e)
+        }
+      }
 
+      // 4. Cleanup resources
       webrtcRef.current?.cleanup()
       channelRef.current?.unsubscribe()
 
       toast.success('Session ended')
-      navigate('/')
     } catch (error) {
       console.error('Failed to end session:', error)
-      toast.error('Failed to end session')
+      toast.error('Error during session end')
+    } finally {
+      // ALWAYS navigate back to home
+      navigate('/')
     }
   }
 
