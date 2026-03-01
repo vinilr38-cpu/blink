@@ -1,80 +1,113 @@
-import { useState } from "react";
-import axios from "axios";
+import { useState } from "react"
+import axios from "axios"
+import { useNavigate } from "react-router-dom"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { LogIn, Mail, Lock, ArrowRight, UserPlus } from "lucide-react"
+import { toast } from "sonner"
+import { motion } from "framer-motion"
 
 export default function Login() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
+    const navigate = useNavigate()
+    const [email, setEmail] = useState("")
+    const [password, setPassword] = useState("")
+    const [loading, setLoading] = useState(false)
 
-    const handleLogin = async () => {
-        setError("");
-        setLoading(true);
-        try {
-            const res = await axios.post("http://localhost:5001/login", { email, password });
-            localStorage.setItem("token", res.data.token);
-            localStorage.setItem("user", JSON.stringify(res.data.user));
-            window.location.href = "/";
-        } catch (err) {
-            setError(err.response?.data?.error || "Login failed");
-        } finally {
-            setLoading(false);
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!email || !password) {
+            toast.error("Please fill in all fields")
+            return
         }
-    };
+
+        setLoading(true)
+        try {
+            const res = await axios.post("http://localhost:5001/login", { email, password })
+            localStorage.setItem("token", res.data.token)
+            localStorage.setItem("user", JSON.stringify(res.data.user))
+            toast.success("Welcome back!")
+            window.location.href = "/"
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || "Login failed")
+        } finally {
+            setLoading(false)
+        }
+    }
 
     return (
-        <div style={{
-            minHeight: "100vh", display: "flex", alignItems: "center",
-            justifyContent: "center", background: "linear-gradient(-45deg,#F4F6F9,#EFF6FF)"
-        }}>
-            <div style={{
-                background: "white", padding: "40px", borderRadius: "20px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.08)", width: "100%", maxWidth: "380px",
-                display: "flex", flexDirection: "column", gap: "16px"
-            }}>
-                <h2 style={{ margin: 0, fontWeight: 900, fontSize: "28px" }}>Welcome back</h2>
-                <p style={{ margin: 0, color: "#6b7280" }}>Sign in to your account</p>
+        <div className="min-h-screen bg-background bg-dot-pattern flex items-center justify-center p-6">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-md"
+            >
+                <Card className="glass-morphism border-none shadow-2xl rounded-3xl overflow-hidden">
+                    <div className="h-2 bg-primary w-full" />
+                    <CardHeader className="text-center pt-8">
+                        <div className="h-16 w-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <LogIn className="h-8 w-8 text-primary" />
+                        </div>
+                        <CardTitle className="text-3xl font-black tracking-tight">Welcome Back</CardTitle>
+                        <CardDescription className="text-muted-foreground font-medium">
+                            Sign in to your account to continue
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-8 pb-10">
+                        <form onSubmit={handleLogin} className="space-y-5">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black uppercase tracking-widest ml-1 text-muted-foreground">Email Address</Label>
+                                <div className="relative">
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input
+                                        type="email"
+                                        placeholder="john@example.com"
+                                        className="h-14 pl-12 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium"
+                                        value={email}
+                                        onChange={e => setEmail(e.target.value)}
+                                    />
+                                </div>
+                            </div>
 
-                {error && (
-                    <div style={{ background: "#FEE2E2", color: "#DC2626", padding: "10px 14px", borderRadius: "10px", fontSize: "14px" }}>
-                        {error}
-                    </div>
-                )}
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black uppercase tracking-widest ml-1 text-muted-foreground">Password</Label>
+                                <div className="relative">
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input
+                                        type="password"
+                                        placeholder="••••••••"
+                                        className="h-14 pl-12 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium"
+                                        value={password}
+                                        onChange={e => setPassword(e.target.value)}
+                                        onKeyDown={e => e.key === "Enter" && handleLogin(e as any)}
+                                    />
+                                </div>
+                            </div>
 
-                <input
-                    placeholder="Email"
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    style={{ padding: "12px 16px", borderRadius: "10px", border: "2px solid #E5E7EB", fontSize: "15px", outline: "none" }}
-                />
-                <input
-                    placeholder="Password"
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handleLogin()}
-                    style={{ padding: "12px 16px", borderRadius: "10px", border: "2px solid #E5E7EB", fontSize: "15px", outline: "none" }}
-                />
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full h-14 rounded-xl text-lg font-black tracking-tight flex items-center justify-center gap-2 mt-4"
+                            >
+                                {loading ? "Signing In..." : "Login"}
+                                <ArrowRight className="h-5 w-5" />
+                            </Button>
 
-                <button
-                    onClick={handleLogin}
-                    disabled={loading}
-                    style={{
-                        background: "#10B981", color: "white", border: "none",
-                        padding: "14px", borderRadius: "12px", fontWeight: 800,
-                        fontSize: "15px", cursor: loading ? "not-allowed" : "pointer",
-                        opacity: loading ? 0.7 : 1, transition: "0.2s"
-                    }}
-                >
-                    {loading ? "Signing in..." : "Login"}
-                </button>
-
-                <p style={{ textAlign: "center", color: "#6b7280", margin: 0, fontSize: "14px" }}>
-                    Don't have an account?{" "}
-                    <a href="/signup" style={{ color: "#10B981", fontWeight: 700 }}>Sign up</a>
-                </p>
-            </div>
+                            <p className="text-center text-sm font-medium text-muted-foreground pt-4">
+                                Don't have an account?{" "}
+                                <button
+                                    type="button"
+                                    onClick={() => navigate("/signup")}
+                                    className="text-primary font-black hover:underline underline-offset-4"
+                                >
+                                    Sign Up
+                                </button>
+                            </p>
+                        </form>
+                    </CardContent>
+                </Card>
+            </motion.div>
         </div>
-    );
+    )
 }

@@ -1,79 +1,169 @@
-import { useState } from "react";
-import axios from "axios";
+import { useState } from "react"
+import axios from "axios"
+import { useNavigate } from "react-router-dom"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { UserPlus, Mail, Phone, Lock, ArrowRight, UserCircle, Briefcase } from "lucide-react"
+import { toast } from "sonner"
+import { motion } from "framer-motion"
 
 export default function Signup() {
-    const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
+    const navigate = useNavigate()
+    const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", role: "participant" })
+    const [loading, setLoading] = useState(false)
 
-    const update = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+    const update = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }))
 
-    const handleSignup = async () => {
-        setError("");
-        setLoading(true);
-        try {
-            await axios.post("http://localhost:5001/signup", form);
-            window.location.href = "/login";
-        } catch (err) {
-            setError(err.response?.data?.error || "Signup failed");
-        } finally {
-            setLoading(false);
+    const handleSignup = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!form.name || !form.email || !form.phone || !form.password) {
+            toast.error("Please fill in all fields")
+            return
         }
-    };
+
+        setLoading(true)
+        try {
+            await axios.post("http://localhost:5001/signup", form)
+            toast.success("Account created successfully!")
+            navigate("/login")
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || "Signup failed")
+        } finally {
+            setLoading(false)
+        }
+    }
 
     return (
-        <div style={{
-            minHeight: "100vh", display: "flex", alignItems: "center",
-            justifyContent: "center", background: "linear-gradient(-45deg,#F4F6F9,#EFF6FF)"
-        }}>
-            <div style={{
-                background: "white", padding: "40px", borderRadius: "20px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.08)", width: "100%", maxWidth: "380px",
-                display: "flex", flexDirection: "column", gap: "16px"
-            }}>
-                <h2 style={{ margin: 0, fontWeight: 900, fontSize: "28px" }}>Create account</h2>
-                <p style={{ margin: 0, color: "#6b7280" }}>Join Smart Audio Manager</p>
+        <div className="min-h-screen bg-background bg-dot-pattern flex items-center justify-center p-6">
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-md"
+            >
+                <Card className="glass-morphism border-none shadow-2xl rounded-3xl overflow-hidden">
+                    <div className="h-2 bg-primary w-full" />
+                    <CardHeader className="text-center pt-8">
+                        <div className="h-16 w-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <UserPlus className="h-8 w-8 text-primary" />
+                        </div>
+                        <CardTitle className="text-3xl font-black tracking-tight">Create Account</CardTitle>
+                        <CardDescription className="text-muted-foreground font-medium">
+                            Join the Smart Audio Manager community
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-8 pb-10">
+                        <form onSubmit={handleSignup} className="space-y-5">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black uppercase tracking-widest ml-1 text-muted-foreground">Full Name</Label>
+                                <div className="relative">
+                                    <UserCircle className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input
+                                        placeholder="John Doe"
+                                        className="h-14 pl-12 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium"
+                                        value={form.name}
+                                        onChange={e => update("name", e.target.value)}
+                                    />
+                                </div>
+                            </div>
 
-                {error && (
-                    <div style={{ background: "#FEE2E2", color: "#DC2626", padding: "10px 14px", borderRadius: "10px", fontSize: "14px" }}>
-                        {error}
-                    </div>
-                )}
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black uppercase tracking-widest ml-1 text-muted-foreground">Email Address</Label>
+                                <div className="relative">
+                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input
+                                        type="email"
+                                        placeholder="john@example.com"
+                                        className="h-14 pl-12 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium"
+                                        value={form.email}
+                                        onChange={e => update("email", e.target.value)}
+                                    />
+                                </div>
+                            </div>
 
-                {[
-                    { field: "name", placeholder: "Full Name", type: "text" },
-                    { field: "email", placeholder: "Email", type: "email" },
-                    { field: "phone", placeholder: "Phone Number", type: "tel" },
-                    { field: "password", placeholder: "Password", type: "password" }
-                ].map(({ field, placeholder, type }) => (
-                    <input
-                        key={field}
-                        placeholder={placeholder}
-                        type={type}
-                        value={form[field]}
-                        onChange={update(field)}
-                        style={{ padding: "12px 16px", borderRadius: "10px", border: "2px solid #E5E7EB", fontSize: "15px", outline: "none" }}
-                    />
-                ))}
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black uppercase tracking-widest ml-1 text-muted-foreground">Phone Number</Label>
+                                <div className="relative">
+                                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input
+                                        type="tel"
+                                        placeholder="+91 00000 00000"
+                                        className="h-14 pl-12 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium"
+                                        value={form.phone}
+                                        onChange={e => update("phone", e.target.value)}
+                                    />
+                                </div>
+                            </div>
 
-                <button
-                    onClick={handleSignup}
-                    disabled={loading}
-                    style={{
-                        background: "#10B981", color: "white", border: "none",
-                        padding: "14px", borderRadius: "12px", fontWeight: 800,
-                        fontSize: "15px", cursor: loading ? "not-allowed" : "pointer",
-                        opacity: loading ? 0.7 : 1, transition: "0.2s"
-                    }}
-                >
-                    {loading ? "Creating account..." : "Sign Up"}
-                </button>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black uppercase tracking-widest ml-1 text-muted-foreground">Password</Label>
+                                <div className="relative">
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                    <Input
+                                        type="password"
+                                        placeholder="••••••••"
+                                        className="h-14 pl-12 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium"
+                                        value={form.password}
+                                        onChange={e => update("password", e.target.value)}
+                                    />
+                                </div>
+                            </div>
 
-                <p style={{ textAlign: "center", color: "#6b7280", margin: 0, fontSize: "14px" }}>
-                    Already have an account?{" "}
-                    <a href="/login" style={{ color: "#10B981", fontWeight: 700 }}>Login</a>
-                </p>
-            </div>
+                            <div className="space-y-3 pt-2">
+                                <Label className="text-xs font-black uppercase tracking-widest ml-1 text-muted-foreground">Select Role</Label>
+                                <RadioGroup
+                                    defaultValue="participant"
+                                    className="grid grid-cols-2 gap-4"
+                                    onValueChange={v => update("role", v)}
+                                >
+                                    <div>
+                                        <RadioGroupItem value="participant" id="participant" className="peer sr-only" />
+                                        <Label
+                                            htmlFor="participant"
+                                            className="flex flex-col items-center justify-between rounded-xl border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+                                        >
+                                            <UserCircle className="mb-2 h-6 w-6" />
+                                            <span className="text-xs font-black uppercase tracking-tight">Participant</span>
+                                        </Label>
+                                    </div>
+                                    <div>
+                                        <RadioGroupItem value="host" id="host" className="peer sr-only" />
+                                        <Label
+                                            htmlFor="host"
+                                            className="flex flex-col items-center justify-between rounded-xl border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
+                                        >
+                                            <Briefcase className="mb-2 h-6 w-6" />
+                                            <span className="text-xs font-black uppercase tracking-tight">Host</span>
+                                        </Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full h-14 rounded-xl text-lg font-black tracking-tight flex items-center justify-center gap-2 mt-4"
+                            >
+                                {loading ? "Creating Account..." : "Sign Up"}
+                                <ArrowRight className="h-5 w-5" />
+                            </Button>
+
+                            <p className="text-center text-sm font-medium text-muted-foreground pt-4">
+                                Already have an account?{" "}
+                                <button
+                                    type="button"
+                                    onClick={() => navigate("/login")}
+                                    className="text-primary font-black hover:underline underline-offset-4"
+                                >
+                                    Login
+                                </button>
+                            </p>
+                        </form>
+                    </CardContent>
+                </Card>
+            </motion.div>
         </div>
-    );
+    )
 }
