@@ -40,7 +40,8 @@ export function HostDashboard() {
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
 
-  const joinUrl = `${window.location.origin}/join/${sessionCode}`
+  const appUrl = import.meta.env.VITE_APP_URL || window.location.origin
+  const joinUrl = `${appUrl}/join/${sessionCode}`
 
   useEffect(() => {
     if (!sessionId) return
