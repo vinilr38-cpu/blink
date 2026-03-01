@@ -37,6 +37,7 @@ export function HostDashboard() {
   const [audioLevels, setAudioLevels] = useState<Record<string, number>>({})
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map())
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null)
+  const [qrModalOpen, setQrModalOpen] = useState(false)
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
 
@@ -377,9 +378,14 @@ export function HostDashboard() {
             <Share2 className="h-5 w-5" />
           </div>
           <span className="text-[10px] font-black text-primary mb-6 tracking-[0.25em] uppercase relative z-10">Invite Audience</span>
-          <div className="bg-white p-4 rounded-3xl shadow-2xl border border-primary/5 mb-8 group-hover:scale-110 transition-transform duration-700 relative z-10">
+          <button
+            onClick={() => setQrModalOpen(true)}
+            className="bg-white p-4 rounded-3xl shadow-2xl border border-primary/5 mb-4 group-hover:scale-105 transition-transform duration-500 relative z-10 cursor-zoom-in"
+            title="Click to enlarge QR code"
+          >
             <QRCodeSVG value={joinUrl} size={140} />
-          </div>
+          </button>
+          <p className="text-[9px] font-bold text-muted-foreground tracking-widest uppercase mb-4 relative z-10 opacity-60">Tap to enlarge</p>
           <Button
             variant="secondary"
             className="w-full h-12 rounded-2xl font-black text-xs tracking-widest relative z-10"
@@ -392,6 +398,59 @@ export function HostDashboard() {
           </Button>
         </motion.div>
       </div>
+
+      {/* QR Fullscreen Modal */}
+      <AnimatePresence>
+        {qrModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setQrModalOpen(false)}
+              className="absolute inset-0 bg-background/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              className="relative glass-morphism rounded-[2.5rem] p-10 flex flex-col items-center gap-8 shadow-2xl border border-primary/10 max-w-sm w-full"
+            >
+              <div className="text-center">
+                <span className="text-[10px] font-black text-primary tracking-[0.3em] uppercase">Smart Audio Session</span>
+                <h3 className="text-2xl font-black mt-1">Scan to Join</h3>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl shadow-2xl border-4 border-primary/10">
+                <QRCodeSVG value={joinUrl} size={280} />
+              </div>
+
+              <div className="text-center space-y-2 w-full">
+                <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">Session Code</p>
+                <p className="text-4xl font-black text-primary tracking-[0.3em]">{sessionCode}</p>
+                <p className="text-xs text-muted-foreground font-medium break-all px-2 mt-2">{joinUrl}</p>
+              </div>
+
+              <div className="flex gap-3 w-full">
+                <Button
+                  className="flex-1 h-12 rounded-2xl font-black"
+                  onClick={() => { navigator.clipboard.writeText(joinUrl); toast.success('Link copied!') }}
+                >
+                  Copy Link
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-12 px-6 rounded-2xl font-black"
+                  onClick={() => setQrModalOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <section className="space-y-8 relative z-10">
         <div className="flex items-center justify-between">
