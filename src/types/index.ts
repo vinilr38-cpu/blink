@@ -23,7 +23,7 @@ export interface Participant {
 }
 
 export interface WebRTCMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'mic-permission' | 'mute' | 'unmute' | 'remove' | 'hand-raise' | 'hand-lower' | 'participant-speaking' | 'session-ended'
+  type: 'offer' | 'answer' | 'ice-candidate' | 'mic-permission' | 'mute' | 'unmute' | 'remove' | 'hand-raise' | 'hand-lower'
   from: string
   to: string
   data?: any

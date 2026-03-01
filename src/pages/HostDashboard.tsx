@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { blink } from '@/lib/blink'
 import { WebRTCManager } from '@/lib/webrtc'
 import { Participant, WebRTCMessage } from '@/types'
-import { Mic, MicOff, UserX, Users } from 'lucide-react'
+import { Mic, MicOff, Hand, UserX, Users, Volume2, Headphones } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function HostDashboard() {
@@ -35,7 +38,7 @@ export function HostDashboard() {
 
         // Load participants
         const parts = await blink.db.participants.list({
-          where: { sessionId, isConnected: 1 },
+          where: { sessionId, isConnected: "1" },
           orderBy: { joinedAt: 'asc' }
         })
         if (mounted) setParticipants(parts)
@@ -115,21 +118,6 @@ export function HostDashboard() {
                 })
                 refreshParticipants()
                 break
-
-              case 'participant-speaking':
-                const id = message.data.id
-                const status = message.data.status
-                const el = document.getElementById(`user-${id}`)
-                if (el) {
-                  if (status) {
-                    el.classList.add("success-border")
-                  } else {
-                    el.classList.remove("success-border")
-                  }
-                }
-                // Also update state to keep it in sync and update badges
-                updateSpeakingStatus(participantId, status)
-                break
             }
           } catch (error) {
             console.error('Error handling WebRTC message:', error)
@@ -166,7 +154,7 @@ export function HostDashboard() {
     if (!sessionId) return
     try {
       const parts = await blink.db.participants.list({
-        where: { sessionId, isConnected: 1 },
+        where: { sessionId, isConnected: "1" },
         orderBy: { joinedAt: 'asc' }
       })
       setParticipants(parts)
@@ -187,7 +175,7 @@ export function HostDashboard() {
   const grantMicPermission = async (participant: Participant) => {
     try {
       await blink.db.participants.update(participant.id, { hasMicPermission: 1, handRaised: 0 })
-
+      
       // Send permission via realtime
       await channelRef.current?.publish('webrtc', {
         type: 'mic-permission',
@@ -206,10 +194,10 @@ export function HostDashboard() {
 
   const denyMicPermission = async (participant: Participant) => {
     try {
-      await blink.db.participants.update(participant.id, {
-        hasMicPermission: 0,
+      await blink.db.participants.update(participant.id, { 
+        hasMicPermission: 0, 
         handRaised: 0,
-        isSpeaking: 0
+        isSpeaking: 0 
       })
 
       // Send denial via realtime
@@ -292,45 +280,26 @@ export function HostDashboard() {
 
   const endSession = async () => {
     try {
-      // 1. Notify all participants
-      try {
-        await channelRef.current?.publish('webrtc', {
-          type: 'session-ended',
-          from: sessionId!,
-          to: 'all',
-          data: {}
-        }, { userId: sessionId! })
-      } catch (e) {
-        console.error('Failed to notify participants:', e)
-      }
-
-      // 2. Update session status
-      await blink.db.sessions.update(sessionId!, {
+      await blink.db.sessions.update(sessionId!, { 
         isActive: 0,
         endedAt: new Date().toISOString()
       })
 
-      // 3. Disconnect all participants using object API
-      const activeParticipants = participants.filter(p => Number(p.isConnected) === 1)
-      for (const p of activeParticipants) {
-        try {
-          await blink.db.participants.update(p.id, { isConnected: 0 })
-        } catch (e) {
-          console.error(`Failed to disconnect participant ${p.id}:`, e)
-        }
-      }
+      // Disconnect all participants
+      await blink.db.sql(`
+        UPDATE participants 
+        SET is_connected = 0 
+        WHERE session_id = ?
+      `, [sessionId])
 
-      // 4. Cleanup resources
       webrtcRef.current?.cleanup()
       channelRef.current?.unsubscribe()
 
       toast.success('Session ended')
+      navigate('/')
     } catch (error) {
       console.error('Failed to end session:', error)
-      toast.error('Error during session end')
-    } finally {
-      // ALWAYS navigate back to home
-      navigate('/')
+      toast.error('Failed to end session')
     }
   }
 
@@ -339,118 +308,161 @@ export function HostDashboard() {
   const speakingCount = participants.filter(p => Number(p.isSpeaking) > 0).length
 
   return (
-    <div className="dashboard">
-      <aside className="sidebar">
-        <h2>Smart Audio</h2>
-        <div className="space-y-4">
-          <button className="primary-btn w-full" onClick={() => toast.info(`Session Code: ${sessionCode}`)}>
-            Session: {sessionCode}
-          </button>
-          <div className="stat-card flex flex-col items-center">
-            <h3 className="mb-4">Scan to Join</h3>
-            <div className="bg-white p-2 rounded-lg">
-              <QRCodeSVG value={joinUrl} size={160} />
-            </div>
-            <p className="text-[10px] mt-4 text-muted-foreground break-all text-center">{joinUrl}</p>
+    <div className="min-h-screen bg-background p-4 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Host Dashboard</h1>
+            <p className="text-muted-foreground">Session Code: <span className="font-mono font-semibold text-foreground">{sessionCode}</span></p>
           </div>
-          <button className="danger-btn w-full" onClick={endSession}>
+          <Button variant="destructive" onClick={endSession}>
             End Session
-          </button>
+          </Button>
         </div>
-      </aside>
 
-      <main className="main-content">
-        <section className="stats">
-          <div className="stat-card">
-            <h3>Total Participants</h3>
-            <p id="count">{connectedCount}</p>
-          </div>
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Connected</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{connectedCount}</div>
+              <p className="text-xs text-muted-foreground">Total participants</p>
+            </CardContent>
+          </Card>
 
-          <div className="stat-card">
-            <h3>Active Speakers</h3>
-            <p id="speakers">{speakingCount}</p>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Hands Raised</CardTitle>
+              <Hand className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{handRaisedCount}</div>
+              <p className="text-xs text-muted-foreground">Waiting to speak</p>
+            </CardContent>
+          </Card>
 
-          <div className="stat-card">
-            <h3>Hands Raised</h3>
-            <p>{handRaisedCount}</p>
-          </div>
-        </section>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Speaking</CardTitle>
+              <Volume2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{speakingCount}</div>
+              <p className="text-xs text-muted-foreground">Currently speaking</p>
+            </CardContent>
+          </Card>
+        </div>
 
-        <section className="participants-grid" id="participants">
-          {participants.map((participant) => {
-            const hasPermission = Number(participant.hasMicPermission) > 0
-            const isMuted = Number(participant.isMuted) > 0
-            const isSpeaking = Number(participant.isSpeaking) > 0
-            const handRaised = Number(participant.handRaised) > 0
-
-            return (
-              <div
-                key={participant.id}
-                id={`user-${participant.id}`}
-                className={`user-card ${isSpeaking ? 'success-border' : ''}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-foreground">{participant.name}</h4>
-                    <p className="text-xs text-muted-foreground">{participant.phone}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    {isSpeaking && (
-                      <Badge className="bg-success">
-                        Speaking
-                      </Badge>
-                    )}
-                    {handRaised && (
-                      <Badge className="bg-primary animate-pulse">
-                        Raised Hand
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                <div className="controls">
-                  {!hasPermission && handRaised && (
-                    <button className="primary-btn" onClick={() => grantMicPermission(participant)}>
-                      Grant Mic
-                    </button>
-                  )}
-
-                  {hasPermission && (
-                    <>
-                      <button
-                        className="primary-btn"
-                        onClick={() => isMuted ? unmuteParticipant(participant) : muteParticipant(participant)}
-                        style={{ background: isMuted ? 'hsl(var(--danger))' : 'hsl(var(--primary))' }}
-                      >
-                        {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                      </button>
-                      <button className="danger-btn" onClick={() => denyMicPermission(participant)}>
-                        Revoke
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    className="danger-btn ml-auto"
-                    onClick={() => removeParticipant(participant)}
-                  >
-                    <UserX className="h-4 w-4" />
-                  </button>
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* QR Code */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Join Session</CardTitle>
+              <CardDescription>Scan QR code to join</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center space-y-4">
+              <div className="bg-white p-4 rounded-lg">
+                <QRCodeSVG value={joinUrl} size={200} />
               </div>
-            )
-          })}
+              <p className="text-xs text-center text-muted-foreground break-all">{joinUrl}</p>
+            </CardContent>
+          </Card>
 
-          {participants.length === 0 && (
-            <div className="col-span-full py-20 text-center bg-white rounded-xl border-2 border-dashed border-border">
-              <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-              <p className="text-foreground font-medium">No participants yet</p>
-              <p className="text-sm text-muted-foreground">Share the join link to start your session</p>
-            </div>
-          )}
-        </section>
-      </main>
+          {/* Participants List */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Participants ({connectedCount})</CardTitle>
+              <CardDescription>Manage participant permissions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px] pr-4">
+                <div className="space-y-3">
+                  {participants.map((participant) => {
+                    const hasPermission = Number(participant.hasMicPermission) > 0
+                    const isMuted = Number(participant.isMuted) > 0
+                    const isSpeaking = Number(participant.isSpeaking) > 0
+                    const handRaised = Number(participant.handRaised) > 0
+
+                    return (
+                      <div
+                        key={participant.id}
+                        className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-foreground">{participant.name}</h4>
+                            {isSpeaking && (
+                              <Badge variant="default" className="gap-1">
+                                <Headphones className="h-3 w-3" />
+                                Speaking
+                              </Badge>
+                            )}
+                            {handRaised && (
+                              <Badge variant="secondary" className="gap-1">
+                                <Hand className="h-3 w-3" />
+                                Hand Raised
+                              </Badge>
+                            )}
+                            {hasPermission && !isSpeaking && (
+                              <Badge variant="outline">Mic Enabled</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{participant.phone}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {!hasPermission && handRaised && (
+                            <Button size="sm" onClick={() => grantMicPermission(participant)}>
+                              Grant Mic
+                            </Button>
+                          )}
+                          
+                          {hasPermission && (
+                            <>
+                              {isMuted ? (
+                                <Button size="sm" variant="outline" onClick={() => unmuteParticipant(participant)}>
+                                  <MicOff className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => muteParticipant(participant)}>
+                                  <Mic className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button size="sm" variant="destructive" onClick={() => denyMicPermission(participant)}>
+                                Revoke
+                              </Button>
+                            </>
+                          )}
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeParticipant(participant)}
+                          >
+                            <UserX className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {participants.length === 0 && (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No participants yet</p>
+                      <p className="text-sm">Share the QR code to get started</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

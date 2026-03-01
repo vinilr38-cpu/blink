@@ -23,7 +23,7 @@ export function ParticipantView() {
   const [isMuted, setIsMuted] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null)
-
+  
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
 
@@ -93,12 +93,6 @@ export function ParticipantView() {
                   await webrtcRef.current.handleIceCandidate(sessionId, message.data)
                 }
                 break
-
-              case 'session-ended':
-                toast.error('The session has been ended by the host')
-                cleanup()
-                setStage('join')
-                break
             }
           } catch (error) {
             console.error('Error handling message:', error)
@@ -130,7 +124,7 @@ export function ParticipantView() {
     try {
       // Find session by code
       const sessions = await blink.db.sessions.list({
-        where: { sessionCode, isActive: 1 },
+        where: { sessionCode, isActive: "1" },
         limit: 1
       })
 
@@ -159,7 +153,7 @@ export function ParticipantView() {
       setParticipantId(participant.id)
       setStage('waiting')
       toast.success('Joined session successfully!')
-
+      
     } catch (error) {
       console.error('Failed to join session:', error)
       toast.error('Failed to join session')
@@ -181,7 +175,7 @@ export function ParticipantView() {
 
     try {
       setHandRaised(true)
-      await blink.db.participants.update(participantId, {
+      await blink.db.participants.update(participantId, { 
         handRaised: 1,
         handRaisedAt: new Date().toISOString()
       })
@@ -214,7 +208,7 @@ export function ParticipantView() {
 
     try {
       setHandRaised(false)
-      await blink.db.participants.update(participantId, {
+      await blink.db.participants.update(participantId, { 
         handRaised: 0,
         handRaisedAt: null
       })
@@ -240,7 +234,7 @@ export function ParticipantView() {
     try {
       // Initialize WebRTC manager
       webrtcRef.current = new WebRTCManager(`session-${sessionId}`)
-
+      
       // Get microphone access
       const stream = await webrtcRef.current.initLocalStream()
       setAudioStream(stream)
@@ -262,7 +256,7 @@ export function ParticipantView() {
 
       // Create and send offer
       const offer = await webrtcRef.current.createOffer(sessionId)
-
+      
       await channelRef.current?.publish('webrtc', {
         type: 'offer',
         from: participantId,
@@ -272,14 +266,6 @@ export function ParticipantView() {
 
       // Update speaking status
       await blink.db.participants.update(participantId, { isSpeaking: 1 })
-
-      // Publish speaking event for instant feedback
-      await channelRef.current?.publish('webrtc', {
-        type: 'participant-speaking',
-        from: participantId,
-        to: sessionId,
-        data: { id: participantId, status: true }
-      }, { userId: participantId })
 
       toast.success('Audio streaming started!')
     } catch (error) {
@@ -291,17 +277,9 @@ export function ParticipantView() {
   const stopAudioStream = () => {
     webrtcRef.current?.cleanup()
     setAudioStream(null)
-
+    
     if (participantId) {
       blink.db.participants.update(participantId, { isSpeaking: 0 }).catch(console.error)
-
-      // Publish speaking event for instant feedback
-      channelRef.current?.publish('webrtc', {
-        type: 'participant-speaking',
-        from: participantId,
-        to: sessionId,
-        data: { id: participantId, status: false }
-      }, { userId: participantId })
     }
   }
 
@@ -318,7 +296,7 @@ export function ParticipantView() {
   const cleanup = () => {
     stopAudioStream()
     channelRef.current?.unsubscribe()
-
+    
     if (participantId) {
       blink.db.participants.update(participantId, { isConnected: 0 }).catch(console.error)
     }
@@ -398,7 +376,7 @@ export function ParticipantView() {
                   <p className="text-sm text-muted-foreground">
                     You can speak now. Your audio is being streamed to the host.
                   </p>
-
+                  
                   <div className="flex gap-2 justify-center">
                     <Button
                       size="lg"
