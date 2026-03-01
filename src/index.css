@@ -269,10 +269,16 @@ body {
 }
 
 .glass-morphism {
-  background: hsl(var(--card) / 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid hsl(var(--border) / 0.5);
+  background: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid hsl(var(--border) / 0.4);
+  transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+
+.dark .glass-morphism {
+  background: hsl(var(--card) / 0.6);
+  border-color: hsl(var(--border) / 0.3);
 }
 
 .bg-dot-pattern {
@@ -284,6 +290,17 @@ body {
 }
 
 .dark .bg-dot-pattern {
-  background-color: hsl(var(--background));
-  background-image: radial-gradient(hsl(var(--primary) / 0.25) 0.5px, transparent 0.5px);
+  background-image: radial-gradient(hsl(var(--primary) / 0.2) 0.5px, transparent 0.5px);
+}
+
+.details-panel {
+  background: hsl(var(--card) / 0.97);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  color: hsl(var(--card-foreground));
+}
+
+.transition-theme {
+  transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
 }

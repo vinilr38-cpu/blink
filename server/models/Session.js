@@ -4,7 +4,7 @@ const sessionSchema = new mongoose.Schema({
     sessionId: { type: String, unique: true },
     hostId: { type: String },
     participants: [{
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        userId: { type: String, default: null },
         name: String,
         phone: String,
         email: String,
