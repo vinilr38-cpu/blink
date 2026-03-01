@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { blink } from '@/lib/blink'
 import { WebRTCManager } from '@/lib/webrtc'
@@ -317,9 +316,9 @@ export function HostDashboard() {
             <QRCodeSVG value={joinUrl} size={160} />
             <p className="text-[10px] mt-2 text-muted-foreground break-all text-center">{joinUrl}</p>
           </div>
-          <Button variant="destructive" className="w-full" onClick={endSession}>
+          <button className="danger-btn w-full" onClick={endSession}>
             End Session
-          </Button>
+          </button>
         </div>
       </aside>
 
@@ -351,7 +350,8 @@ export function HostDashboard() {
             return (
               <div
                 key={participant.id}
-                className={`user-card flex flex-col gap-4 ${isSpeaking ? 'success-border' : ''}`}
+                id={`user-${participant.id}`}
+                className={`user-card ${isSpeaking ? 'success-border' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -372,37 +372,34 @@ export function HostDashboard() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 mt-auto">
+                <div className="controls">
                   {!hasPermission && handRaised && (
-                    <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => grantMicPermission(participant)}>
+                    <button className="primary-btn" onClick={() => grantMicPermission(participant)}>
                       Grant Mic
-                    </Button>
+                    </button>
                   )}
 
                   {hasPermission && (
                     <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className={isMuted ? "text-danger" : "text-primary"}
+                      <button
+                        className="primary-btn"
                         onClick={() => isMuted ? unmuteParticipant(participant) : muteParticipant(participant)}
+                        style={{ background: isMuted ? 'hsl(var(--danger))' : 'hsl(var(--primary))' }}
                       >
                         {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => denyMicPermission(participant)}>
+                      </button>
+                      <button className="danger-btn" onClick={() => denyMicPermission(participant)}>
                         Revoke
-                      </Button>
+                      </button>
                     </>
                   )}
 
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto text-muted-foreground hover:text-destructive"
+                  <button
+                    className="danger-btn ml-auto"
                     onClick={() => removeParticipant(participant)}
                   >
                     <UserX className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </div>
               </div>
             )

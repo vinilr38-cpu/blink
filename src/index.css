@@ -148,6 +148,25 @@ body {
   border: 2px solid #10B981;
 }
 
+.controls {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.danger-btn {
+  background: #EF4444;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.danger-btn:hover {
+  opacity: 0.9;
+}
+
 /* Hide Blink watermark if injected by SDK */
 [id^="blink-"],
 [class^="blink-"],
