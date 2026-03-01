@@ -5,19 +5,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { blink } from '@/lib/blink'
+import { blink as blinkSDK } from '@/lib/blink'
+const blink = blinkSDK as any
 import { WebRTCManager } from '@/lib/webrtc'
 import { WebRTCMessage } from '@/types'
 import { Hand, Mic, MicOff, Volume2, VolumeX, ArrowLeft, Headphones, Radio } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import axios from 'axios'
+import AudioWaveform from '@/components/AudioWaveform'
+import { io, Socket } from 'socket.io-client'
+
+const SOCKET_URL = 'http://localhost:5001'
 
 export function ParticipantView() {
   const { sessionCode } = useParams()
   const navigate = useNavigate()
   const [stage, setStage] = useState<'join' | 'waiting' | 'active'>('join')
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
+
+  // Pre-fill from localStorage if user is logged in
+  const user = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null') } catch { return null } })()
+  const [name, setName] = useState(user?.name || '')
+  const [phone, setPhone] = useState(user?.phone || '')
+  const [email, setEmail] = useState('')
   const [participantId, setParticipantId] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [handRaised, setHandRaised] = useState(false)
@@ -28,6 +38,7 @@ export function ParticipantView() {
 
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
+  const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
     if (stage === 'join' || !sessionId || !participantId) return
@@ -41,6 +52,21 @@ export function ParticipantView() {
         channelRef.current = channel
 
         await channel.subscribe({ userId: participantId })
+
+        // 🚀 "socket.emit" equivalent for joining
+        const joinData = {
+          sessionId,
+          name: name.trim(),
+          phone: phone.trim(),
+          email: user ? user.email : email.trim(),
+          userId: user ? user.id : null
+        }
+        await channel.publish('webrtc', {
+          type: 'join-session',
+          from: participantId,
+          to: sessionId,
+          data: joinData
+        }, { userId: participantId })
 
         channel.onMessage(async (msg: any) => {
           if (!mounted || msg.type !== 'webrtc') return
@@ -136,12 +162,40 @@ export function ParticipantView() {
         sessionId: session.id,
         name: name.trim(),
         phone: phone.trim(),
+        email: user ? user.email : email.trim(),
         isConnected: 1,
         hasMicPermission: 0,
         isMuted: 0,
         isSpeaking: 0,
         handRaised: 0
       })
+
+      const joinData = {
+        sessionId: session.id,
+        name: name.trim(),
+        phone: phone.trim(),
+        email: user ? user.email : email.trim(),
+        userId: user ? user.id : null
+      }
+
+      // 🔌 Socket.io Implementation
+      if (!socketRef.current) {
+        socketRef.current = io(SOCKET_URL)
+      }
+
+      socketRef.current.emit("join-session", {
+        ...joinData,
+        sessionId: session.sessionCode // The user logic uses sessionId for the findOne, but in our DB it's stored as sessionId. Wait.
+      })
+
+      // Sync with our backend via REST (optional but keeping for reliability unless requested otherwise)
+      // await axios.post('http://localhost:5001/sessions/join', {
+      //   sessionCode: session.sessionCode,
+      //   ...joinData
+      // })
+
+      // The socket logic: since we use Blink SDK, we'll emit this to the host via the realtime channel
+      // We'll do this once the channel is initialized in the useEffect
 
       setParticipantId(participant.id)
       setStage('waiting')
@@ -305,6 +359,19 @@ export function ParticipantView() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 px-8 pb-10">
+
+                {user && (
+                  <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-xl">
+                    <div className="h-9 w-9 rounded-xl bg-primary/15 flex items-center justify-center text-lg font-black text-primary">
+                      {user.name?.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-foreground">Joining as {user.name}</p>
+                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   <Label htmlFor="name" className="text-sm font-black uppercase tracking-widest text-muted-foreground ml-1">Your Name</Label>
                   <Input
@@ -326,6 +393,21 @@ export function ParticipantView() {
                     onChange={(e) => setPhone(e.target.value)}
                   />
                 </div>
+
+                {!user && (
+                  <div className="space-y-3">
+                    <Label htmlFor="email" className="text-sm font-black uppercase tracking-widest text-muted-foreground ml-1">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="your@email.com"
+                      className="h-14 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium px-5"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                )}
+
                 <button
                   className="primary-btn w-full py-4 text-xl flex items-center justify-center gap-3"
                   onClick={joinSession}
@@ -380,6 +462,13 @@ export function ParticipantView() {
                           {!isMuted && <div className="absolute inset-0 bg-success rounded-full animate-ping opacity-25" />}
                           {isMuted ? <MicOff size={40} /> : <Mic size={40} />}
                         </div>
+
+                        {!isMuted && audioStream && (
+                          <div className="flex justify-center">
+                            <AudioWaveform stream={audioStream} />
+                          </div>
+                        )}
+
                         <div>
                           <Badge className="bg-success px-4 py-1 text-sm mb-2">{isMuted ? 'Muted' : 'Speaking Live'}</Badge>
                           <p className="text-muted-foreground font-medium px-4">

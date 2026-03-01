@@ -5,14 +5,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { blink } from '@/lib/blink'
+import { blink as blinkSDK } from '@/lib/blink'
+const blink = blinkSDK as any
 import { WebRTCManager } from '@/lib/webrtc'
 import { Participant, WebRTCMessage } from '@/types'
 import { Mic, MicOff, UserX, Users, Radio, LogOut, Share2, Hand, Volume2, Headphones } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import AudioWaveform from '@/components/AudioWaveform'
 
-const container = {
+const container: any = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
@@ -22,7 +24,7 @@ const container = {
   }
 }
 
-const item = {
+const item: any = {
   hidden: { opacity: 0, scale: 0.9 },
   show: { opacity: 1, scale: 1 }
 }
@@ -33,6 +35,8 @@ export function HostDashboard() {
   const [sessionCode, setSessionCode] = useState('')
   const [participants, setParticipants] = useState<Participant[]>([])
   const [audioLevels, setAudioLevels] = useState<Record<string, number>>({})
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map())
+  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null)
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
 
@@ -85,6 +89,11 @@ export function HostDashboard() {
                   },
                   (stream) => {
                     updateSpeakingStatus(participantId, true)
+                    setRemoteStreams(prev => {
+                      const next = new Map(prev)
+                      next.set(participantId, stream)
+                      return next
+                    })
                   }
                 )
                 await webrtcRef.current!.handleOffer(participantId, message.data)
@@ -397,12 +406,19 @@ export function HostDashboard() {
                   variants={item}
                   whileHover={{ scale: 1.05 }}
                   exit={{ scale: 0.9, opacity: 0 }}
-                  className={`user-card relative p-6 glass-morphism border-none shadow-lg overflow-hidden transition-all duration-500 rounded-3xl ${isSpeaking ? 'ring-2 ring-success shadow-success/20' : ''}`}
+                  animate={
+                    isSpeaking
+                      ? { boxShadow: "0 0 20px rgba(16,185,129,0.7)" }
+                      : { boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }
+                  }
+                  transition={{ duration: 0.3 }}
+                  className="user-card relative p-6 glass-morphism border-none overflow-hidden rounded-3xl cursor-pointer"
+                  onClick={() => setSelectedParticipant(participant)}
                 >
                   {isSpeaking && <div className="absolute inset-0 bg-success/5 speaking-pulse" />}
 
                   <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-start justify-between mb-4">
                       <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl font-black text-primary">
                         {participant.name.charAt(0)}
                       </div>
@@ -427,10 +443,16 @@ export function HostDashboard() {
                       </div>
                     </div>
 
-                    <div className="mb-8">
+                    <div className="mb-6">
                       <h4 className="text-xl font-black text-foreground mb-1 leading-tight">{participant.name}</h4>
                       <p className="text-[10px] font-bold text-muted-foreground tracking-[0.15em] uppercase opacity-70">{participant.phone}</p>
                     </div>
+
+                    {isSpeaking && remoteStreams.get(participant.id) && (
+                      <div className="mb-4 -mx-2">
+                        <AudioWaveform stream={remoteStreams.get(participant.id)!} />
+                      </div>
+                    )}
 
                     <div className="flex gap-3">
                       <AnimatePresence mode="wait">
@@ -498,6 +520,74 @@ export function HostDashboard() {
           </motion.div>
         )}
       </section>
+
+      <AnimatePresence>
+        {selectedParticipant && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedParticipant(null)}
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="details-panel relative w-full max-w-lg glass-morphism border-none rounded-[2rem] overflow-hidden shadow-2xl p-8"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 rounded-2xl bg-primary/20 flex items-center justify-center text-3xl font-black text-primary">
+                    {selectedParticipant.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black">{selectedParticipant.name}</h3>
+                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest opacity-60">Participant Details</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedParticipant(null)}
+                  className="h-10 w-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                >
+                  <UserX className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-muted/30">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Name</p>
+                  <p className="text-lg font-bold">{selectedParticipant.name}</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-muted/30">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Phone Number</p>
+                  <p className="text-lg font-bold">{selectedParticipant.phone}</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-muted/30">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Email Address</p>
+                  <p className="text-lg font-bold">{selectedParticipant.email || 'Not provided'}</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-muted/30">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Joined At</p>
+                  <p className="text-lg font-bold">
+                    {new Date(selectedParticipant.joinedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 flex gap-3">
+                <button
+                  className="flex-1 primary-btn py-4"
+                  onClick={() => setSelectedParticipant(null)}
+                >
+                  Close Details
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

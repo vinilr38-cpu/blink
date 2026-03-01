@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { blink } from '@/lib/blink'
+import { blink as blinkSDK } from '@/lib/blink'
+const blink = blinkSDK as any
 import { Mic, Users, Radio, Headphones, Play, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import axios from 'axios'
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -23,6 +25,13 @@ export function HomePage() {
         hostId: `host_${Date.now()}`,
         sessionCode,
         isActive: 1
+      })
+
+      // Sync with our backend
+      const storedUser = JSON.parse(localStorage.getItem('user') || 'null')
+      await axios.post('http://localhost:5001/sessions/create', {
+        sessionId: session.id,
+        hostId: storedUser ? storedUser.id : 'anonymous'
       })
 
       toast.success('Session created successfully!')
@@ -44,14 +53,14 @@ export function HomePage() {
     navigate(`/join/${joinCode.toUpperCase()}`)
   }
 
-  const containerVariants = {
+  const containerVariants: any = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
   }
 
-  const itemVariants = {
+  const itemVariants: any = {
     hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } }
+    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "linear" } }
   }
 
   return (

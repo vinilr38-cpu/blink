@@ -20,10 +20,11 @@ export interface Participant {
   handRaised: string | number
   handRaisedAt?: string
   joinedAt: string
+  email?: string
 }
 
 export interface WebRTCMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'mic-permission' | 'mute' | 'unmute' | 'remove' | 'hand-raise' | 'hand-lower'
+  type: 'offer' | 'answer' | 'ice-candidate' | 'mic-permission' | 'mute' | 'unmute' | 'remove' | 'hand-raise' | 'hand-lower' | 'participant-speaking' | 'session-ended'
   from: string
   to: string
   data?: any

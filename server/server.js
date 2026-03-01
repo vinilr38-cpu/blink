@@ -1,0 +1,137 @@
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import { createServer } from "http";
+import { Server } from "socket.io";
+
+dotenv.config();
+
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
+app.use(cors());
+app.use(express.json());
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URL || "YOUR_MONGO_URL")
+    .then(() => console.log("MongoDB connected"))
+    .catch(err => console.error("MongoDB error:", err));
+
+import User from "./models/User.js";
+import Session from "./models/Session.js";
+
+const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
+
+// 🌐 SOCKET.IO LOGIC
+io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
+    socket.on("join-session", async (data) => {
+        try {
+            const session = await Session.findOne({ sessionId: data.sessionId });
+            if (!session) return;
+
+            session.participants.push({
+                userId: data.userId,
+                name: data.name,
+                phone: data.phone,
+                email: data.email,
+                joinedAt: new Date()
+            });
+
+            await session.save();
+            console.log(`User ${data.name} joined session ${data.sessionId}`);
+
+            // Broadcast to others in the same session if needed
+            socket.join(data.sessionId);
+            io.to(data.sessionId).emit("participant-joined", {
+                name: data.name,
+                userId: data.userId
+            });
+        } catch (err) {
+            console.error("Socket error:", err.message);
+        }
+    });
+
+    socket.on("disconnect", () => {
+        console.log("User disconnected:", socket.id);
+    });
+});
+
+// 🔐 SIGNUP
+app.post("/signup", async (req, res) => {
+    try {
+        const { name, email, phone, password, role } = req.body;
+        const existing = await User.findOne({ email });
+        if (existing) return res.status(400).json({ error: "Email already in use" });
+
+        const hashed = await bcrypt.hash(password, 10);
+        const user = await User.create({
+            name,
+            email,
+            phone,
+            password: hashed,
+            role: role || "participant"
+        });
+
+        res.json({ message: "User created", userId: user._id });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 🔐 LOGIN
+app.post("/login", async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) return res.status(400).json({ error: "User not found" });
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.status(400).json({ error: "Wrong password" });
+
+        const token = jwt.sign(
+            { id: user._id, role: user.role },
+            JWT_SECRET
+        );
+
+        res.json({
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                role: user.role
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 🎙️ SESSION CREATE
+app.post("/sessions/create", async (req, res) => {
+    try {
+        const { sessionId, hostId } = req.body;
+        const session = await Session.create({ sessionId, hostId, participants: [] });
+        res.json({ message: "Session created", session });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ❤️ Health check
+app.get("/", (req, res) => res.json({ status: "Server running" }));
+
+const PORT = process.env.PORT || 5001;
+httpServer.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
