@@ -128,3 +128,8 @@
     transform: translateY(0);
   }
 }
+
+/* Hide Blink watermark if injected by SDK */
+[id^="blink-"], [class^="blink-"], .blink-watermark {
+  display: none !important;
+}
