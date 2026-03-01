@@ -308,161 +308,117 @@ export function HostDashboard() {
   const speakingCount = participants.filter(p => Number(p.isSpeaking) > 0).length
 
   return (
-    <div className="min-h-screen bg-background p-4 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Host Dashboard</h1>
-            <p className="text-muted-foreground">Session Code: <span className="font-mono font-semibold text-foreground">{sessionCode}</span></p>
+    <div className="dashboard">
+      <aside className="sidebar">
+        <h2>Smart Audio</h2>
+        <div className="space-y-4">
+          <button className="primary-btn w-full" onClick={() => toast.info(`Session Code: ${sessionCode}`)}>
+            Session: {sessionCode}
+          </button>
+          <div className="bg-white p-4 rounded-lg border flex flex-col items-center">
+            <QRCodeSVG value={joinUrl} size={160} />
+            <p className="text-[10px] mt-2 text-text-light break-all text-center">{joinUrl}</p>
           </div>
-          <Button variant="destructive" onClick={endSession}>
+          <Button variant="destructive" className="w-full" onClick={endSession}>
             End Session
           </Button>
         </div>
+      </aside>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Connected</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{connectedCount}</div>
-              <p className="text-xs text-muted-foreground">Total participants</p>
-            </CardContent>
-          </Card>
+      <main className="main-content">
+        <section className="stats">
+          <div className="stat-card">
+            <h3>Total Participants</h3>
+            <p id="count">{connectedCount}</p>
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Hands Raised</CardTitle>
-              <Hand className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{handRaisedCount}</div>
-              <p className="text-xs text-muted-foreground">Waiting to speak</p>
-            </CardContent>
-          </Card>
+          <div className="stat-card">
+            <h3>Active Speakers</h3>
+            <p id="speakers">{speakingCount}</p>
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Speaking</CardTitle>
-              <Volume2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{speakingCount}</div>
-              <p className="text-xs text-muted-foreground">Currently speaking</p>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="stat-card">
+            <h3>Hands Raised</h3>
+            <p>{handRaisedCount}</p>
+          </div>
+        </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* QR Code */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Join Session</CardTitle>
-              <CardDescription>Scan QR code to join</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center space-y-4">
-              <div className="bg-white p-4 rounded-lg">
-                <QRCodeSVG value={joinUrl} size={200} />
-              </div>
-              <p className="text-xs text-center text-muted-foreground break-all">{joinUrl}</p>
-            </CardContent>
-          </Card>
+        <section className="participants-grid" id="participants">
+          {participants.map((participant) => {
+            const hasPermission = Number(participant.hasMicPermission) > 0
+            const isMuted = Number(participant.isMuted) > 0
+            const isSpeaking = Number(participant.isSpeaking) > 0
+            const handRaised = Number(participant.handRaised) > 0
 
-          {/* Participants List */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Participants ({connectedCount})</CardTitle>
-              <CardDescription>Manage participant permissions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[500px] pr-4">
-                <div className="space-y-3">
-                  {participants.map((participant) => {
-                    const hasPermission = Number(participant.hasMicPermission) > 0
-                    const isMuted = Number(participant.isMuted) > 0
-                    const isSpeaking = Number(participant.isSpeaking) > 0
-                    const handRaised = Number(participant.handRaised) > 0
-
-                    return (
-                      <div
-                        key={participant.id}
-                        className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium text-foreground">{participant.name}</h4>
-                            {isSpeaking && (
-                              <Badge variant="default" className="gap-1">
-                                <Headphones className="h-3 w-3" />
-                                Speaking
-                              </Badge>
-                            )}
-                            {handRaised && (
-                              <Badge variant="secondary" className="gap-1">
-                                <Hand className="h-3 w-3" />
-                                Hand Raised
-                              </Badge>
-                            )}
-                            {hasPermission && !isSpeaking && (
-                              <Badge variant="outline">Mic Enabled</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{participant.phone}</p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {!hasPermission && handRaised && (
-                            <Button size="sm" onClick={() => grantMicPermission(participant)}>
-                              Grant Mic
-                            </Button>
-                          )}
-                          
-                          {hasPermission && (
-                            <>
-                              {isMuted ? (
-                                <Button size="sm" variant="outline" onClick={() => unmuteParticipant(participant)}>
-                                  <MicOff className="h-4 w-4" />
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="outline" onClick={() => muteParticipant(participant)}>
-                                  <Mic className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button size="sm" variant="destructive" onClick={() => denyMicPermission(participant)}>
-                                Revoke
-                              </Button>
-                            </>
-                          )}
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => removeParticipant(participant)}
-                          >
-                            <UserX className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {participants.length === 0 && (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No participants yet</p>
-                      <p className="text-sm">Share the QR code to get started</p>
-                    </div>
-                  )}
+            return (
+              <div
+                key={participant.id}
+                className={`stat-card flex flex-col gap-4 border-l-4 ${isSpeaking ? 'border-l-success' : 'border-l-transparent'}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-text-dark">{participant.name}</h4>
+                    <p className="text-xs text-text-light">{participant.phone}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {isSpeaking && (
+                      <Badge className="bg-success">
+                        Speaking
+                      </Badge>
+                    )}
+                    {handRaised && (
+                      <Badge className="bg-primary animate-pulse">
+                        Raised Hand
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+
+                <div className="flex items-center gap-2 mt-auto">
+                  {!hasPermission && handRaised && (
+                    <Button size="sm" className="bg-primary hover:bg-primary/90" onClick={() => grantMicPermission(participant)}>
+                      Grant Mic
+                    </Button>
+                  )}
+                  
+                  {hasPermission && (
+                    <>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className={isMuted ? "text-danger" : "text-primary"}
+                        onClick={() => isMuted ? unmuteParticipant(participant) : muteParticipant(participant)}
+                      >
+                        {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => denyMicPermission(participant)}>
+                        Revoke
+                      </Button>
+                    </>
+                  )}
+
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto text-text-light hover:text-danger"
+                    onClick={() => removeParticipant(participant)}
+                  >
+                    <UserX className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+
+          {participants.length === 0 && (
+            <div className="col-span-full py-20 text-center bg-white rounded-xl border-2 border-dashed border-border">
+              <Users className="h-12 w-12 mx-auto mb-4 text-text-light opacity-20" />
+              <p className="text-text-dark font-medium">No participants yet</p>
+              <p className="text-sm text-text-light">Share the join link to start your session</p>
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   )
 }
