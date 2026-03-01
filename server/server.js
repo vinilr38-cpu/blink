@@ -6,6 +6,8 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import User from "./models/User.js";
+import Session from "./models/Session.js";
 
 dotenv.config();
 
@@ -26,8 +28,6 @@ mongoose.connect(process.env.MONGO_URL || "YOUR_MONGO_URL")
     .then(() => console.log("MongoDB connected"))
     .catch(err => console.error("MongoDB error:", err));
 
-import User from "./models/User.js";
-import Session from "./models/Session.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
 
