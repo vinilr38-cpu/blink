@@ -95,7 +95,7 @@ function AppContent() {
       )}
 
       <motion.main
-        className="main-content relative overflow-hidden"
+        className="main-content relative"
         animate={{ marginLeft: hideSidebar ? 0 : collapsed ? 80 : 280 }}
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       >
@@ -115,7 +115,14 @@ function AppContent() {
               <Route path="/participants" element={<Participants />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/host/:sessionId" element={<HostDashboard />} />
-              <Route path="/join/:sessionCode" element={<ParticipantView />} />
+              <Route
+                path="/join/:sessionCode"
+                element={
+                  token
+                    ? <ParticipantView />
+                    : <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />
+                }
+              />
             </Routes>
           </motion.div>
         </AnimatePresence>
