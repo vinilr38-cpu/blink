@@ -4,6 +4,10 @@
 @tailwind components;
 @tailwind utilities;
 
+* {
+  transition: all 0.2s ease-in-out;
+}
+
 @layer base {
   :root {
     /* New Color System */

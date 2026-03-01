@@ -327,9 +327,12 @@ export function HostDashboard() {
           <button className="primary-btn w-full" onClick={() => toast.info(`Session Code: ${sessionCode}`)}>
             Session: {sessionCode}
           </button>
-          <div className="bg-white p-4 rounded-lg border flex flex-col items-center">
-            <QRCodeSVG value={joinUrl} size={160} />
-            <p className="text-[10px] mt-2 text-muted-foreground break-all text-center">{joinUrl}</p>
+          <div className="stat-card flex flex-col items-center">
+            <h3 className="mb-4">Scan to Join</h3>
+            <div className="bg-white p-2 rounded-lg">
+              <QRCodeSVG value={joinUrl} size={160} />
+            </div>
+            <p className="text-[10px] mt-4 text-muted-foreground break-all text-center">{joinUrl}</p>
           </div>
           <button className="danger-btn w-full" onClick={endSession}>
             End Session
