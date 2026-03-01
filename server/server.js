@@ -18,7 +18,7 @@ const io = new Server(httpServer, {
     }
 });
 
-app.use(cors());
+app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
 app.use(express.json());
 
 // Connect to MongoDB
@@ -73,7 +73,8 @@ io.on("connection", (socket) => {
 app.post("/signup", async (req, res) => {
     try {
         const { name, email, phone, password, role } = req.body;
-        const existing = await User.findOne({ email });
+        if (!email || !password || !name) return res.status(400).json({ error: "Missing required fields" });
+        const existing = await User.findOne({ email: email.toLowerCase() });
         if (existing) return res.status(400).json({ error: "Email already in use" });
 
         const hashed = await bcrypt.hash(password, 10);
@@ -106,7 +107,7 @@ app.post("/login", async (req, res) => {
             JWT_SECRET
         );
 
-        res.json({
+        return res.json({
             token,
             user: {
                 id: user._id,
@@ -125,6 +126,7 @@ app.post("/login", async (req, res) => {
 app.put("/users/profile", async (req, res) => {
     try {
         const { id, name, phone, role } = req.body;
+        if (!id) return res.status(400).json({ error: "User ID is required" });
         const user = await User.findByIdAndUpdate(
             id,
             { name, phone, role },

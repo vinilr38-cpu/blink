@@ -55,7 +55,7 @@ export function Settings() {
     if (!user) return null
 
     return (
-        <div className="flex-1 p-8 bg-dot-pattern max-w-4xl mx-auto transition-theme">
+        <div className="w-full min-h-full p-8 bg-dot-pattern max-w-4xl mx-auto transition-theme pb-20">
             <header className="mb-12">
                 <div className="flex items-center gap-4 mb-2">
                     <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -95,8 +95,8 @@ export function Settings() {
                                         key={t.id}
                                         onClick={() => setTheme(t.id as any)}
                                         className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all ${theme === t.id
-                                                ? 'border-primary bg-primary/5 text-primary shadow-lg shadow-primary/5'
-                                                : 'border-border bg-card text-muted-foreground hover:border-primary/30'
+                                            ? 'border-primary bg-primary/5 text-primary shadow-lg shadow-primary/5'
+                                            : 'border-border bg-card text-muted-foreground hover:border-primary/30'
                                             }`}
                                     >
                                         <t.icon className={`h-6 w-6 ${theme === t.id ? 'text-primary' : 'text-muted-foreground'}`} />
