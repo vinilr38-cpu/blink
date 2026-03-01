@@ -115,6 +115,21 @@ export function HostDashboard() {
                 })
                 refreshParticipants()
                 break
+
+              case 'participant-speaking':
+                const id = message.data.id
+                const status = message.data.status
+                const el = document.getElementById(`user-${id}`)
+                if (el) {
+                  if (status) {
+                    el.classList.add("success-border")
+                  } else {
+                    el.classList.remove("success-border")
+                  }
+                }
+                // Also update state to keep it in sync and update badges
+                updateSpeakingStatus(participantId, status)
+                break
             }
           } catch (error) {
             console.error('Error handling WebRTC message:', error)
