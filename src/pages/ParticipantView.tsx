@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -12,12 +13,12 @@ import { WebRTCMessage } from '@/types'
 import { Hand, Mic, MicOff, Volume2, VolumeX, ArrowLeft, Headphones, Radio } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
-import axios from 'axios'
+import api from '@/lib/api'
 import AudioWaveform from '@/components/AudioWaveform'
 import { io } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
 
-const SOCKET_URL = 'http://localhost:5001'
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
 
 export function ParticipantView() {
   const { sessionCode } = useParams()

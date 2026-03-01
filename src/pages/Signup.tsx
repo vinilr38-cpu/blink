@@ -1,5 +1,5 @@
 import { useState } from "react"
-import axios from "axios"
+import api from "@/lib/api"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,7 +26,7 @@ export default function Signup() {
 
         setLoading(true)
         try {
-            await axios.post("http://localhost:5001/signup", form)
+            await api.post("/signup", form)
             toast.success("Account created successfully!")
             navigate("/login")
         } catch (err: any) {

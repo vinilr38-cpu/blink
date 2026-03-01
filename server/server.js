@@ -114,24 +114,45 @@ app.post("/login", async (req, res) => {
                 role: user.role
             }
         });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        // 👤 UPDATE PROFILE
+        app.put("/users/profile", async (req, res) => {
+            try {
+                const { id, name, phone, role } = req.body;
+                const user = await User.findByIdAndUpdate(
+                    id,
+                    { name, phone, role },
+                    { new: true }
+                );
+                if (!user) return res.status(404).json({ error: "User not found" });
 
-// 🎙️ SESSION CREATE
-app.post("/sessions/create", async (req, res) => {
-    try {
-        const { sessionId, hostId } = req.body;
-        const session = await Session.create({ sessionId, hostId, participants: [] });
-        res.json({ message: "Session created", session });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+                res.json({
+                    message: "Profile updated",
+                    user: {
+                        id: user._id,
+                        name: user.name,
+                        email: user.email,
+                        phone: user.phone,
+                        role: user.role
+                    }
+                });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
 
-// ❤️ Health check
-app.get("/", (req, res) => res.json({ status: "Server running" }));
+        // 🎙️ SESSION CREATE
+        app.post("/sessions/create", async (req, res) => {
+            try {
+                const { sessionId, hostId } = req.body;
+                const session = await Session.create({ sessionId, hostId, participants: [] });
+                res.json({ message: "Session created", session });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
 
-const PORT = process.env.PORT || 5001;
-httpServer.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+        // ❤️ Health check
+        app.get("/", (req, res) => res.json({ status: "Server running" }));
+
+        const PORT = process.env.PORT || 5001;
+        httpServer.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

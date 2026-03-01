@@ -7,7 +7,7 @@ const blink = blinkSDK as any
 import { Mic, Users, Radio, Headphones, Play, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
-import axios from 'axios'
+import api from '@/lib/api'
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -29,7 +29,7 @@ export function HomePage() {
 
       // Sync with our backend
       const storedUser = JSON.parse(localStorage.getItem('user') || 'null')
-      await axios.post('http://localhost:5001/sessions/create', {
+      await api.post('/sessions/create', {
         sessionId: session.id,
         hostId: storedUser ? storedUser.id : 'anonymous'
       })

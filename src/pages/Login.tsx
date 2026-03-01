@@ -1,5 +1,5 @@
 import { useState } from "react"
-import axios from "axios"
+import api from "@/lib/api"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,7 +24,7 @@ export default function Login() {
 
         setLoading(true)
         try {
-            const res = await axios.post("http://localhost:5001/login", { email, password })
+            const res = await api.post("/login", { email, password })
             localStorage.setItem("token", res.data.token)
             localStorage.setItem("user", JSON.stringify(res.data.user))
             toast.success("Welcome back!")

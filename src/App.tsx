@@ -29,6 +29,7 @@ function AppContent() {
 
   // Auth guard — redirect to login if no token and not on public pages
   const token = localStorage.getItem("token")
+  const user = JSON.parse(localStorage.getItem("user") || "null")
   if (!token && !isParticipant && !isAuthPage) {
     return <Navigate to="/login" />
   }
@@ -72,29 +73,31 @@ function AppContent() {
             <SidebarItem icon="⚙️" label="Settings" to="/settings" collapsed={collapsed} />
           </nav>
 
-          <div className="mt-auto">
-            <motion.button
-              className="primary-btn w-full flex items-center justify-center gap-2 py-3"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => window.location.href = '/'}
-            >
-              <span>🎙️</span>
-              <AnimatePresence>
-                {!collapsed && (
-                  <motion.span
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: 'auto' }}
-                    exit={{ opacity: 0, width: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="whitespace-nowrap overflow-hidden"
-                  >
-                    Create Session
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          </div>
+          {user?.role === 'host' && (
+            <div className="mt-auto">
+              <motion.button
+                className="primary-btn w-full flex items-center justify-center gap-2 py-3"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => window.location.href = '/'}
+              >
+                <span>🎙️</span>
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: 'auto' }}
+                      exit={{ opacity: 0, width: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="whitespace-nowrap overflow-hidden"
+                    >
+                      Create Session
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </motion.button>
+            </div>
+          )}
         </motion.aside>
       )}
 
