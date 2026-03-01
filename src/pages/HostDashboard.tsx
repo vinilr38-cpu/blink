@@ -12,6 +12,21 @@ import { Mic, MicOff, UserX, Users, Radio, LogOut, Share2, Hand, Volume2, Headph
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08
+    }
+  }
+}
+
+const item = {
+  hidden: { opacity: 0, scale: 0.9 },
+  show: { opacity: 1, scale: 1 }
+}
+
 export function HostDashboard() {
   const { sessionId } = useParams()
   const navigate = useNavigate()
@@ -362,7 +377,12 @@ export function HostDashboard() {
           <div className="h-[1px] flex-1 bg-primary/10 mx-6 opacity-50" />
         </div>
 
-        <motion.div className="participants-grid">
+        <motion.div
+          className="participants-grid"
+          variants={container}
+          initial="hidden"
+          animate="show"
+        >
           <AnimatePresence mode="popLayout">
             {participants.map((participant) => {
               const hasPermission = Number(participant.hasMicPermission) > 0
@@ -374,8 +394,8 @@ export function HostDashboard() {
                 <motion.div
                   key={participant.id}
                   layout
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
+                  variants={item}
+                  whileHover={{ scale: 1.05 }}
                   exit={{ scale: 0.9, opacity: 0 }}
                   className={`user-card relative p-6 glass-morphism border-none shadow-lg overflow-hidden transition-all duration-500 rounded-3xl ${isSpeaking ? 'ring-2 ring-success shadow-success/20' : ''}`}
                 >
