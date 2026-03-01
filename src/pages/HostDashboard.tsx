@@ -2,13 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { blink } from '@/lib/blink'
 import { WebRTCManager } from '@/lib/webrtc'
 import { Participant, WebRTCMessage } from '@/types'
-import { Mic, MicOff, Hand, UserX, Users, Volume2, Headphones } from 'lucide-react'
+import { Mic, MicOff, UserX, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
 export function HostDashboard() {
@@ -317,7 +315,7 @@ export function HostDashboard() {
           </button>
           <div className="bg-white p-4 rounded-lg border flex flex-col items-center">
             <QRCodeSVG value={joinUrl} size={160} />
-            <p className="text-[10px] mt-2 text-text-light break-all text-center">{joinUrl}</p>
+            <p className="text-[10px] mt-2 text-muted-foreground break-all text-center">{joinUrl}</p>
           </div>
           <Button variant="destructive" className="w-full" onClick={endSession}>
             End Session
@@ -357,8 +355,8 @@ export function HostDashboard() {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-bold text-text-dark">{participant.name}</h4>
-                    <p className="text-xs text-text-light">{participant.phone}</p>
+                    <h4 className="font-bold text-foreground">{participant.name}</h4>
+                    <p className="text-xs text-muted-foreground">{participant.phone}</p>
                   </div>
                   <div className="flex gap-2">
                     {isSpeaking && (
@@ -400,7 +398,7 @@ export function HostDashboard() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="ml-auto text-text-light hover:text-danger"
+                    className="ml-auto text-muted-foreground hover:text-destructive"
                     onClick={() => removeParticipant(participant)}
                   >
                     <UserX className="h-4 w-4" />
@@ -412,9 +410,9 @@ export function HostDashboard() {
 
           {participants.length === 0 && (
             <div className="col-span-full py-20 text-center bg-white rounded-xl border-2 border-dashed border-border">
-              <Users className="h-12 w-12 mx-auto mb-4 text-text-light opacity-20" />
-              <p className="text-text-dark font-medium">No participants yet</p>
-              <p className="text-sm text-text-light">Share the join link to start your session</p>
+              <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-20" />
+              <p className="text-foreground font-medium">No participants yet</p>
+              <p className="text-sm text-muted-foreground">Share the join link to start your session</p>
             </div>
           )}
         </section>
