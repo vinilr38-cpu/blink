@@ -40,8 +40,9 @@ export function HomePage() {
         hostId: storedUser ? storedUser.id : 'anonymous'
       })
 
+      localStorage.setItem('activeSessionId', session.id)
       toast.success('Session created successfully!')
-      navigate(`/host/${session.id}`)
+      navigate(`/host/${session.id}`, { replace: true })
     } catch (error) {
       console.error('Failed to create session:', error)
       toast.error('Failed to create session')

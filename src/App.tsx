@@ -37,6 +37,12 @@ function AppContent() {
     return <Navigate to="/login" />
   }
 
+  // Redirect host to active session if they try to go home
+  const activeSessionId = localStorage.getItem("activeSessionId")
+  if (token && user?.role === 'host' && activeSessionId && location.pathname === '/') {
+    return <Navigate to={`/host/${activeSessionId}`} replace />
+  }
+
   return (
     <div className="dashboard transition-theme">
       {!hideSidebar && (

@@ -41,8 +41,8 @@ export function HostDashboard() {
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
 
-  const appUrl = import.meta.env.VITE_APP_URL || window.location.origin
-  const joinUrl = `${appUrl}/join/${sessionCode}`
+  // Use window.location.origin to ensure the QR code works in production/Vercel correctly
+  const joinUrl = `${window.location.origin}/join/${sessionCode}`
 
   useEffect(() => {
     if (!sessionId) return
@@ -141,6 +141,13 @@ export function HostDashboard() {
       }
     }
 
+    const setupSessionPersistence = () => {
+      if (sessionId) {
+        localStorage.setItem('activeSessionId', sessionId)
+      }
+    }
+
+    setupSessionPersistence()
     init()
     const interval = setInterval(refreshParticipants, 3000)
 
@@ -287,8 +294,9 @@ export function HostDashboard() {
 
       webrtcRef.current?.cleanup()
       channelRef.current?.unsubscribe()
+      localStorage.removeItem('activeSessionId')
       toast.success('Session ended')
-      navigate('/')
+      navigate('/', { replace: true })
     } catch (error) {
       console.error('Failed to end session:', error)
     } finally {
