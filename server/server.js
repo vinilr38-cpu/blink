@@ -14,7 +14,7 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
         origin: "*",
-        methods: ["GET", "POST"]
+        methods: ["GET", "POST", "PUT"]
     }
 });
 
@@ -30,6 +30,9 @@ import User from "./models/User.js";
 import Session from "./models/Session.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
+
+// ❤️ Health check
+app.get("/", (req, res) => res.json({ status: "Server running" }));
 
 // 🌐 SOCKET.IO LOGIC
 io.on("connection", (socket) => {
@@ -51,7 +54,6 @@ io.on("connection", (socket) => {
             await session.save();
             console.log(`User ${data.name} joined session ${data.sessionId}`);
 
-            // Broadcast to others in the same session if needed
             socket.join(data.sessionId);
             io.to(data.sessionId).emit("participant-joined", {
                 name: data.name,
@@ -114,53 +116,66 @@ app.post("/login", async (req, res) => {
                 role: user.role
             }
         });
-        // 👤 UPDATE PROFILE
-        app.put("/users/profile", async (req, res) => {
-            try {
-                const { id, name, phone, role } = req.body;
-                const user = await User.findByIdAndUpdate(
-                    id,
-                    { name, phone, role },
-                    { new: true }
-                );
-                if (!user) return res.status(404).json({ error: "User not found" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-                res.json({
-                    message: "Profile updated",
-                    user: {
-                        id: user._id,
-                        name: user.name,
-                        email: user.email,
-                        phone: user.phone,
-                        role: user.role
-                    }
-                });
-            } catch (err) {
-                res.status(500).json({ error: err.message });
+// 👤 UPDATE PROFILE
+app.put("/users/profile", async (req, res) => {
+    try {
+        const { id, name, phone, role } = req.body;
+        const user = await User.findByIdAndUpdate(
+            id,
+            { name, phone, role },
+            { new: true }
+        );
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        res.json({
+            message: "Profile updated",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                role: user.role
             }
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        // 🎙️ SESSION CREATE
-        app.post("/sessions/create", async (req, res) => {
-            try {
-                const { sessionId, hostId } = req.body;
-                let session = await Session.findOne({ sessionId });
-                if (!session) {
-                    session = await Session.create({
-                        sessionId,
-                        hostId: hostId ? String(hostId) : "anonymous",
-                        participants: []
-                    });
-                }
-                res.json({ message: "Session indexed", session });
-            } catch (err) {
-                console.error("Session Create Error:", err);
-                res.status(500).json({ error: err.message });
-            }
-        });
+// 🎙️ SESSION CREATE
+app.post("/sessions/create", async (req, res) => {
+    try {
+        const { sessionId, hostId } = req.body;
+        let session = await Session.findOne({ sessionId });
+        if (!session) {
+            session = await Session.create({
+                sessionId,
+                hostId: hostId ? String(hostId) : "anonymous",
+                participants: []
+            });
+        }
+        res.json({ message: "Session indexed", session });
+    } catch (err) {
+        console.error("Session Create Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        // ❤️ Health check
-        app.get("/", (req, res) => res.json({ status: "Server running" }));
+// 📋 GET ALL PARTICIPANTS (for Participants page)
+app.get("/sessions/:sessionId/participants", async (req, res) => {
+    try {
+        const session = await Session.findOne({ sessionId: req.params.sessionId });
+        if (!session) return res.status(404).json({ error: "Session not found" });
+        res.json({ participants: session.participants });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
-        const PORT = process.env.PORT || 5001;
-        httpServer.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+const PORT = process.env.PORT || 5001;
+httpServer.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

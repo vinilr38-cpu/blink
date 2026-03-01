@@ -7,14 +7,17 @@
 }
 
 .sidebar {
-  background: #ffffff;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
   padding: 20px;
   display: flex;
   flex-direction: column;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 2px 0 10px hsl(var(--foreground) / 0.05);
+  border-right: 1px solid hsl(var(--border));
   z-index: 50;
   flex-shrink: 0;
   overflow: hidden;
+  transition: background-color 0.4s ease, border-color 0.4s ease;
 }
 
 .collapse-btn {
@@ -29,13 +32,14 @@
   font-size: 20px;
   cursor: pointer;
   margin-bottom: 20px;
-  color: #6b7280;
-  transition: background 0.2s;
+  color: hsl(var(--muted-foreground));
+  transition: background 0.2s, color 0.2s;
   align-self: flex-start;
 }
 
 .collapse-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 .nav {
@@ -52,13 +56,16 @@
   padding: 10px;
   border-radius: 8px;
   cursor: pointer;
-  transition: 0.2s;
+  transition: background 0.2s, color 0.2s;
   overflow: hidden;
   white-space: nowrap;
+  color: hsl(var(--foreground));
+  text-decoration: none;
 }
 
 .sidebar-item:hover {
-  background: #F3F4F6;
+  background: hsl(var(--muted));
+  color: hsl(var(--primary));
 }
 
 /* Both .icon and .sidebar-icon work interchangeably */
@@ -71,7 +78,7 @@
 .sidebar-label {
   font-weight: 700;
   font-size: 14px;
-  color: #374151;
+  color: inherit;
   overflow: hidden;
 }
 
@@ -84,4 +91,6 @@
   flex-direction: column;
   min-width: 0;
   transition: margin-left 0.4s ease;
+  background: hsl(var(--background));
+  transition: background-color 0.4s ease, margin-left 0.4s ease;
 }
