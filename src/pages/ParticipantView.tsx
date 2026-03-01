@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,11 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { blink } from '@/lib/blink'
 import { WebRTCManager } from '@/lib/webrtc'
 import { WebRTCMessage } from '@/types'
-import { Hand, Mic, MicOff, Volume2, VolumeX } from 'lucide-react'
+import { Hand, Mic, MicOff, Volume2, VolumeX, ArrowLeft, Headphones, Radio } from 'lucide-react'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export function ParticipantView() {
   const { sessionCode } = useParams()
+  const navigate = useNavigate()
   const [stage, setStage] = useState<'join' | 'waiting' | 'active'>('join')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -23,7 +25,7 @@ export function ParticipantView() {
   const [isMuted, setIsMuted] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null)
-  
+
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
 
@@ -35,18 +37,14 @@ export function ParticipantView() {
 
     const init = async () => {
       try {
-        // Setup realtime channel
         channel = blink.realtime.channel(`session-${sessionId}`)
         channelRef.current = channel
 
         await channel.subscribe({ userId: participantId })
 
-        // Listen for messages from host
         channel.onMessage(async (msg: any) => {
           if (!mounted || msg.type !== 'webrtc') return
-
           const message: WebRTCMessage = msg.data
-
           if (message.to !== participantId) return
 
           try {
@@ -54,8 +52,7 @@ export function ParticipantView() {
               case 'mic-permission':
                 if (message.data.granted) {
                   setHasMicPermission(true)
-                  toast.success('Microphone permission granted! You can now speak.')
-                  // Start audio streaming
+                  toast.success('Microphone permission granted!')
                   await startAudioStream()
                 } else {
                   setHasMicPermission(false)
@@ -67,46 +64,45 @@ export function ParticipantView() {
               case 'mute':
                 setIsMuted(true)
                 webrtcRef.current?.muteLocalAudio()
-                toast.info('You have been muted by the host')
+                toast.info('You have been muted')
                 break
 
               case 'unmute':
                 setIsMuted(false)
                 webrtcRef.current?.unmuteLocalAudio()
-                toast.info('You have been unmuted by the host')
+                toast.info('You have been unmuted')
                 break
 
               case 'remove':
-                toast.error('You have been removed from the session')
+                toast.error('Removed from session')
                 cleanup()
                 setStage('join')
                 break
 
               case 'answer':
-                if (webrtcRef.current) {
-                  await webrtcRef.current.handleAnswer(sessionId, message.data)
-                }
+                if (webrtcRef.current) await webrtcRef.current.handleAnswer(sessionId, message.data)
                 break
 
               case 'ice-candidate':
-                if (webrtcRef.current) {
-                  await webrtcRef.current.handleIceCandidate(sessionId, message.data)
-                }
+                if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(sessionId, message.data)
+                break
+
+              case 'session-ended':
+                toast.error('Session ended by host')
+                cleanup()
+                setStage('join')
                 break
             }
           } catch (error) {
             console.error('Error handling message:', error)
           }
         })
-
       } catch (error) {
         console.error('Failed to initialize participant view:', error)
-        toast.error('Failed to connect to session')
       }
     }
 
     init()
-
     return () => {
       mounted = false
       channel?.unsubscribe()
@@ -115,21 +111,19 @@ export function ParticipantView() {
 
   const joinSession = async () => {
     if (!name.trim() || !phone.trim()) {
-      toast.error('Please enter your name and phone number')
+      toast.error('Please fill in all fields')
       return
     }
 
     setIsConnecting(true)
-
     try {
-      // Find session by code
       const sessions = await blink.db.sessions.list({
         where: { sessionCode, isActive: "1" },
         limit: 1
       })
 
       if (sessions.length === 0) {
-        toast.error('Session not found or has ended')
+        toast.error('Session not found')
         setIsConnecting(false)
         return
       }
@@ -137,7 +131,6 @@ export function ParticipantView() {
       const session = sessions[0]
       setSessionId(session.id)
 
-      // Create participant record
       const participant = await blink.db.participants.create({
         id: `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         sessionId: session.id,
@@ -152,99 +145,61 @@ export function ParticipantView() {
 
       setParticipantId(participant.id)
       setStage('waiting')
-      toast.success('Joined session successfully!')
-      
+      toast.success('Connected to live session')
     } catch (error) {
       console.error('Failed to join session:', error)
-      toast.error('Failed to join session')
+      toast.error('Connection failed')
     } finally {
       setIsConnecting(false)
     }
   }
 
   const raiseHand = async () => {
-    if (!participantId || !sessionId) {
-      toast.error('Session not connected')
-      return
-    }
-
-    if (!channelRef.current) {
-      toast.error('Connection not ready. Please wait...')
-      return
-    }
-
+    if (!participantId || !sessionId || !channelRef.current) return
     try {
       setHandRaised(true)
-      await blink.db.participants.update(participantId, { 
+      await blink.db.participants.update(participantId, {
         handRaised: 1,
         handRaisedAt: new Date().toISOString()
       })
-
       await channelRef.current.publish('webrtc', {
         type: 'hand-raise',
         from: participantId,
         to: sessionId,
         data: { name }
       }, { userId: participantId })
-
-      toast.success('Hand raised! Waiting for host approval...')
+      toast.success('Hand raised!')
     } catch (error) {
-      console.error('Failed to raise hand:', error)
-      toast.error('Failed to raise hand. Please try again.')
       setHandRaised(false)
     }
   }
 
   const lowerHand = async () => {
-    if (!participantId || !sessionId) {
-      toast.error('Session not connected')
-      return
-    }
-
-    if (!channelRef.current) {
-      toast.error('Connection not ready. Please wait...')
-      return
-    }
-
+    if (!participantId || !sessionId || !channelRef.current) return
     try {
       setHandRaised(false)
-      await blink.db.participants.update(participantId, { 
-        handRaised: 0,
-        handRaisedAt: null
-      })
-
+      await blink.db.participants.update(participantId, { handRaised: 0, handRaisedAt: null })
       await channelRef.current.publish('webrtc', {
         type: 'hand-lower',
         from: participantId,
         to: sessionId,
         data: {}
       }, { userId: participantId })
-
       toast.info('Hand lowered')
-    } catch (error) {
-      console.error('Failed to lower hand:', error)
-      toast.error('Failed to lower hand. Please try again.')
-      setHandRaised(true)
-    }
+    } catch (error) { }
   }
 
   const startAudioStream = async () => {
     if (!sessionId || !participantId) return
-
     try {
-      // Initialize WebRTC manager
       webrtcRef.current = new WebRTCManager(`session-${sessionId}`)
-      
-      // Get microphone access
       const stream = await webrtcRef.current.initLocalStream()
       setAudioStream(stream)
 
-      // Create peer connection
-      const pc = await webrtcRef.current.createPeerConnection(
+      await webrtcRef.current.createPeerConnection(
         sessionId,
         true,
         (candidate) => {
-          // Send ICE candidate to host
           channelRef.current?.publish('webrtc', {
             type: 'ice-candidate',
             from: participantId,
@@ -254,9 +209,7 @@ export function ParticipantView() {
         }
       )
 
-      // Create and send offer
       const offer = await webrtcRef.current.createOffer(sessionId)
-      
       await channelRef.current?.publish('webrtc', {
         type: 'offer',
         from: participantId,
@@ -264,39 +217,61 @@ export function ParticipantView() {
         data: offer
       }, { userId: participantId })
 
-      // Update speaking status
       await blink.db.participants.update(participantId, { isSpeaking: 1 })
-
-      toast.success('Audio streaming started!')
+      await channelRef.current?.publish('webrtc', {
+        type: 'participant-speaking',
+        from: participantId,
+        to: sessionId,
+        data: { id: participantId, status: true }
+      }, { userId: participantId })
     } catch (error) {
-      console.error('Failed to start audio stream:', error)
-      toast.error('Failed to access microphone')
+      toast.error('Mic access denied')
     }
   }
 
   const stopAudioStream = () => {
     webrtcRef.current?.cleanup()
     setAudioStream(null)
-    
     if (participantId) {
       blink.db.participants.update(participantId, { isSpeaking: 0 }).catch(console.error)
+      channelRef.current?.publish('webrtc', {
+        type: 'participant-speaking',
+        from: participantId,
+        to: sessionId,
+        data: { id: participantId, status: false }
+      }, { userId: participantId })
     }
   }
 
-  const toggleMute = () => {
-    if (isMuted) {
-      webrtcRef.current?.unmuteLocalAudio()
-      setIsMuted(false)
-    } else {
+  const toggleMute = async () => {
+    if (!participantId || !sessionId || !channelRef.current) return
+    const newMutedState = !isMuted
+    setIsMuted(newMutedState)
+
+    if (newMutedState) {
       webrtcRef.current?.muteLocalAudio()
-      setIsMuted(true)
+      await blink.db.participants.update(participantId, { isMuted: 1, isSpeaking: 0 })
+      await channelRef.current.publish('webrtc', {
+        type: 'participant-speaking',
+        from: participantId,
+        to: sessionId,
+        data: { id: participantId, status: false }
+      }, { userId: participantId })
+    } else {
+      webrtcRef.current?.unmuteLocalAudio()
+      await blink.db.participants.update(participantId, { isMuted: 0, isSpeaking: 1 })
+      await channelRef.current.publish('webrtc', {
+        type: 'participant-speaking',
+        from: participantId,
+        to: sessionId,
+        data: { id: participantId, status: true }
+      }, { userId: participantId })
     }
   }
 
   const cleanup = () => {
     stopAudioStream()
     channelRef.current?.unsubscribe()
-    
     if (participantId) {
       blink.db.participants.update(participantId, { isConnected: 0 }).catch(console.error)
     }
@@ -304,143 +279,177 @@ export function ParticipantView() {
 
   const leaveSession = () => {
     cleanup()
-    setStage('join')
-    setName('')
-    setPhone('')
-    setParticipantId(null)
-    setSessionId(null)
-    setHandRaised(false)
-    setHasMicPermission(false)
-    toast.info('Left session')
+    navigate('/')
   }
 
-  if (stage === 'join') {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Join Session</CardTitle>
-            <CardDescription>Session Code: <span className="font-mono font-semibold">{sessionCode}</span></CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="Enter your phone number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            </div>
-            <Button
-              className="w-full"
-              onClick={joinSession}
-              disabled={isConnecting || !name.trim() || !phone.trim()}
-            >
-              {isConnecting ? 'Joining...' : 'Join Session'}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  return (
+    <div className="min-h-screen bg-background bg-dot-pattern flex items-center justify-center p-6">
+      <AnimatePresence mode="wait">
+        {stage === 'join' ? (
+          <motion.div
+            key="join-stage"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="w-full max-w-md"
+          >
+            <Card className="glass-morphism border-none shadow-2xl rounded-3xl overflow-hidden">
+              <div className="h-2 bg-primary w-full" />
+              <CardHeader className="text-center pt-8">
+                <div className="h-16 w-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Radio className="h-8 w-8 text-primary animate-pulse" />
+                </div>
+                <CardTitle className="text-3xl font-black tracking-tight">Join Session</CardTitle>
+                <CardDescription className="text-lg font-bold text-primary/60">
+                  CODE: {sessionCode}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 px-8 pb-10">
+                <div className="space-y-3">
+                  <Label htmlFor="name" className="text-sm font-black uppercase tracking-widest text-muted-foreground ml-1">Your Name</Label>
+                  <Input
+                    id="name"
+                    placeholder="Enter full name"
+                    className="h-14 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium px-5"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label htmlFor="phone" className="text-sm font-black uppercase tracking-widest text-muted-foreground ml-1">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="+91 00000 00000"
+                    className="h-14 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium px-5"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+                <button
+                  className="primary-btn w-full py-4 text-xl flex items-center justify-center gap-3"
+                  onClick={joinSession}
+                  disabled={isConnecting || !name.trim() || !phone.trim()}
+                >
+                  {isConnecting ? 'Connecting...' : 'Join Now'}
+                </button>
+                <button
+                  onClick={() => navigate('/')}
+                  className="w-full text-sm font-bold text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Back to Home
+                </button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="waiting-stage"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md"
+          >
+            <Card className="glass-morphism border-none shadow-2xl rounded-3xl overflow-hidden text-center">
+              <div className="h-2 bg-primary w-full" />
+              <CardHeader className="pt-10">
+                <CardTitle className="text-2xl font-black">Welcome, {name.split(' ')[0]}!</CardTitle>
+                <CardDescription className="font-bold flex items-center justify-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                  Live Connection Verified
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-8 px-8 pb-12">
+                <div className="py-10 bg-primary/5 rounded-3xl border border-primary/5 relative overflow-hidden group">
+                  {hasMicPermission && !isMuted && (
+                    <div className="absolute inset-0 flex items-center justify-center gap-1 opacity-20 pointer-events-none">
+                      {[1, 2, 3, 4, 5, 4, 3, 2, 1].map((h, i) => (
+                        <motion.div
+                          key={i}
+                          animate={{ height: [20, 60, 20] }}
+                          transition={{ repeat: Infinity, duration: 0.5, delay: i * 0.1 }}
+                          className="w-1 bg-primary rounded-full"
+                        />
+                      ))}
+                    </div>
+                  )}
 
-  if (stage === 'waiting') {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Welcome, {name}!</CardTitle>
-            <CardDescription>You're in the session</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="text-center space-y-4">
-              {hasMicPermission ? (
-                <>
-                  <div className="flex items-center justify-center gap-2 text-primary">
-                    <Mic className="h-8 w-8" />
-                    <Badge variant="default" className="text-lg px-4 py-2">
-                      Mic Enabled
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    You can speak now. Your audio is being streamed to the host.
-                  </p>
-                  
-                  <div className="flex gap-2 justify-center">
-                    <Button
-                      size="lg"
-                      variant={isMuted ? "outline" : "default"}
-                      onClick={toggleMute}
-                    >
-                      {isMuted ? (
-                        <>
-                          <MicOff className="h-5 w-5 mr-2" />
-                          Unmute
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="h-5 w-5 mr-2" />
-                          Mute
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </>
-              ) : handRaised ? (
-                <>
-                  <div className="flex items-center justify-center gap-2 text-primary">
-                    <Hand className="h-8 w-8 animate-pulse" />
-                    <Badge variant="secondary" className="text-lg px-4 py-2">
-                      Hand Raised
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Waiting for host to grant microphone permission...
-                  </p>
-                  <Button variant="outline" onClick={lowerHand}>
-                    Lower Hand
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                    <VolumeX className="h-8 w-8" />
-                    <Badge variant="outline" className="text-lg px-4 py-2">
-                      Listening
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Raise your hand to request permission to speak
-                  </p>
-                  <Button size="lg" onClick={raiseHand}>
-                    <Hand className="h-5 w-5 mr-2" />
-                    Raise Hand
-                  </Button>
-                </>
-              )}
-            </div>
+                  <AnimatePresence mode="wait">
+                    {hasMicPermission ? (
+                      <motion.div key="active" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-6">
+                        <div className="h-24 w-24 bg-success text-white rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-success/40 ring-8 ring-success/10 relative">
+                          {!isMuted && <div className="absolute inset-0 bg-success rounded-full animate-ping opacity-25" />}
+                          {isMuted ? <MicOff size={40} /> : <Mic size={40} />}
+                        </div>
+                        <div>
+                          <Badge className="bg-success px-4 py-1 text-sm mb-2">{isMuted ? 'Muted' : 'Speaking Live'}</Badge>
+                          <p className="text-muted-foreground font-medium px-4">
+                            {isMuted ? 'Wait for host to unmute you' : 'Your audience can hear you now'}
+                          </p>
+                        </div>
+                        <button
+                          className={`px-8 py-3 rounded-2xl font-black transition-all ${isMuted ? 'bg-success text-white shadow-lg' : 'bg-white border-2 border-danger/20 text-danger hover:bg-danger/5'}`}
+                          onClick={toggleMute}
+                        >
+                          {isMuted ? 'Click to Unmute' : 'Mute Microphone'}
+                        </button>
+                      </motion.div>
+                    ) : handRaised ? (
+                      <motion.div key="waiting" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-6">
+                        <div className="h-24 w-24 bg-primary text-white rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-primary/40 ring-8 ring-primary/10">
+                          <Hand size={40} className="animate-bounce" />
+                        </div>
+                        <div>
+                          <Badge variant="secondary" className="px-4 py-1 text-sm mb-2">Request Sent</Badge>
+                          <p className="text-muted-foreground font-medium px-10 leading-relaxed">
+                            Waiting for the host to approve your microphone access
+                          </p>
+                        </div>
+                        <button
+                          onClick={lowerHand}
+                          className="text-sm font-black text-muted-foreground hover:text-danger transition-colors underline underline-offset-4"
+                        >
+                          Cancel Request
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <motion.div key="idle" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-6">
+                        <div className="h-24 w-24 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto border-4 border-white shadow-lg">
+                          <Headphones size={40} />
+                        </div>
+                        <div>
+                          <Badge variant="outline" className="px-4 py-1 text-sm mb-2">Listening Mode</Badge>
+                          <p className="text-muted-foreground font-medium px-4">
+                            Raise your hand if you want to ask a question
+                          </p>
+                        </div>
+                        <button
+                          className="primary-btn px-10 py-4 text-lg"
+                          onClick={raiseHand}
+                        >
+                          Raise Your Hand
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
 
-            <div className="pt-4 border-t">
-              <Button variant="destructive" className="w-full" onClick={leaveSession}>
-                Leave Session
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  return null
+                <div className="pt-6 border-t flex items-center justify-between">
+                  <div className="text-left">
+                    <p className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-1">Session</p>
+                    <p className="text-sm font-bold text-foreground">Interactive Audio Q&A</p>
+                  </div>
+                  <button
+                    onClick={leaveSession}
+                    className="px-6 py-3 rounded-xl bg-danger/10 text-danger font-black text-sm hover:bg-danger/20 transition-all"
+                  >
+                    Leave Session
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
 }

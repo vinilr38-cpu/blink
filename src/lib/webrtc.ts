@@ -14,9 +14,14 @@ export class WebRTCManager {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          // @ts-ignore - Chrome specific constraints
+          googEchoCancellation: true,
+          googAutoGainControl: true,
+          googNoiseSuppression: true,
+          googHighpassFilter: true
         },
         video: false
       })
@@ -71,7 +76,7 @@ export class WebRTCManager {
 
   playRemoteAudio(peerId: string, stream: MediaStream) {
     let audio = this.audioElements.get(peerId)
-    
+
     if (!audio) {
       audio = new Audio()
       audio.autoplay = true
@@ -105,7 +110,7 @@ export class WebRTCManager {
     if (!pc) throw new Error('No peer connection found')
 
     await pc.setRemoteDescription(new RTCSessionDescription(offer))
-    
+
     // Add local stream tracks after setting remote description
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => {

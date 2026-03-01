@@ -3,21 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { blink } from '@/lib/blink'
-import { Mic, Users, Radio, Headphones } from 'lucide-react'
+import { Mic, Users, Radio, Headphones, Play, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export function HomePage() {
   const navigate = useNavigate()
   const [isCreating, setIsCreating] = useState(false)
+  const [isJoining, setIsJoining] = useState(false)
+  const [joinCode, setJoinCode] = useState('')
 
   const createSession = async () => {
     setIsCreating(true)
-    
+
     try {
-      // Generate unique session code
       const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase()
-      
-      // Create session
       const session = await blink.db.sessions.create({
         id: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         hostId: `host_${Date.now()}`,
@@ -35,141 +35,189 @@ export function HomePage() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
-        
-        <div className="relative max-w-7xl mx-auto px-4 py-16 lg:py-24">
-          <div className="text-center space-y-6 max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-full text-sm font-medium text-primary">
-              <Radio className="h-4 w-4" />
-              Live Audio Q&A Platform
-            </div>
-            
-            <h1 className="text-4xl lg:text-6xl font-bold text-foreground">
-              Interactive Audio
-              <span className="block text-primary">Session Manager</span>
-            </h1>
-            
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Host live audio Q&A sessions with real-time participant management, 
-              WebRTC audio streaming, and seamless control over who can speak.
-            </p>
+  const handleManualJoin = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (joinCode.length !== 6) {
+      toast.error('Session code must be 6 characters')
+      return
+    }
+    navigate(`/join/${joinCode.toUpperCase()}`)
+  }
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-              <Button size="lg" onClick={createSession} disabled={isCreating}>
-                <Mic className="h-5 w-5 mr-2" />
-                {isCreating ? 'Creating Session...' : 'Create Session'}
-              </Button>
-              <Button size="lg" variant="outline" onClick={() => {
-                toast.info('Scan QR code from host to join a session')
-              }}>
-                <Users className="h-5 w-5 mr-2" />
-                Join Session
-              </Button>
-            </div>
-          </div>
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
+  }
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } }
+  }
+
+  return (
+    <div className="flex-1 bg-background text-foreground bg-dot-pattern">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden pt-12">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
+
+        <div className="relative max-w-7xl mx-auto px-4 py-16 lg:py-24">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={containerVariants}
+            className="text-center space-y-8 max-w-3xl mx-auto"
+          >
+            <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-full text-sm font-medium text-primary">
+              <Radio className="h-4 w-4 animate-pulse" />
+              Live Audio Q&A Platform
+            </motion.div>
+
+            <motion.h1 variants={itemVariants} className="text-5xl lg:text-7xl font-extrabold tracking-tight">
+              Interactive Audio
+              <span className="block text-primary drop-shadow-sm">Session Manager</span>
+            </motion.h1>
+
+            <motion.p variants={itemVariants} className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Host live audio Q&A sessions with real-time participant management and
+              WebRTC streaming. The professional choice for interactive events.
+            </motion.p>
+
+            <motion.div variants={itemVariants} className="flex flex-col items-center justify-center pt-8">
+              <AnimatePresence mode="wait">
+                {!isJoining ? (
+                  <motion.div
+                    key="main-btns"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="flex flex-col sm:flex-row gap-6 justify-center w-full"
+                  >
+                    <button
+                      className="primary-btn text-lg py-4 px-10 flex items-center justify-center min-w-[200px]"
+                      onClick={createSession}
+                      disabled={isCreating}
+                    >
+                      <Mic className="h-6 w-6 mr-3" />
+                      {isCreating ? 'Creating...' : 'Start Session'}
+                    </button>
+                    <button
+                      className="bg-white text-foreground border-2 border-primary/10 hover:border-primary/30 py-4 px-10 rounded-2xl font-bold flex items-center justify-center text-lg transition-all min-w-[200px]"
+                      onClick={() => setIsJoining(true)}
+                    >
+                      <Users className="h-6 w-6 mr-3 text-primary" />
+                      Join Now
+                    </button>
+                  </motion.div>
+                ) : (
+                  <motion.form
+                    key="join-form"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    onSubmit={handleManualJoin}
+                    className="w-full max-w-sm space-y-6"
+                  >
+                    <div className="relative group">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-primary to-blue-400 rounded-2xl blur opacity-25 group-focus-within:opacity-50 transition duration-1000"></div>
+                      <input
+                        autoFocus
+                        type="text"
+                        placeholder="ENTER 6-DIGIT CODE"
+                        value={joinCode}
+                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                        maxLength={6}
+                        className="relative w-full px-6 py-6 text-center text-3xl font-black tracking-widest bg-white border-2 border-primary/20 rounded-2xl focus:border-primary focus:outline-none transition-all shadow-xl"
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button type="submit" className="primary-btn flex-1 py-4 text-lg">
+                        Go Live <ArrowRight className="h-5 w-5 ml-2 inline" />
+                      </button>
+                      <button
+                        type="button"
+                        className="px-6 py-4 rounded-2xl font-semibold hover:bg-muted transition-colors"
+                        onClick={() => setIsJoining(false)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
 
       {/* Features */}
-      <div className="max-w-7xl mx-auto px-4 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader>
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <Mic className="h-6 w-6 text-primary" />
-              </div>
-              <CardTitle>Real-Time Audio</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                WebRTC-powered low-latency audio streaming from participants to host device
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-              <CardTitle>Participant Control</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Grant or deny mic access, mute anyone instantly, and manage up to 10+ participants
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <Radio className="h-6 w-6 text-primary" />
-              </div>
-              <CardTitle>QR Code Join</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Participants join instantly by scanning QR code with any mobile device
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                <Headphones className="h-6 w-6 text-primary" />
-              </div>
-              <CardTitle>Hand Raise System</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                Participants request to speak by raising hand, host approves before they can talk
-              </CardDescription>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="max-w-7xl mx-auto px-4 py-24">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={containerVariants}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"
+        >
+          {[
+            { icon: Mic, title: "Real-Time Audio", desc: "Ultra-low latency WebRTC streaming from any device." },
+            { icon: Users, title: "10+ Participants", desc: "Scale your sessions with professional management tools." },
+            { icon: Radio, title: "Instant Join", desc: "No app needed. Scan or type the code to go live." },
+            { icon: Headphones, title: "Hand Raising", desc: "Structured Q&A with real-time speaker moderation." }
+          ].map((f, i) => (
+            <motion.div key={i} variants={itemVariants}>
+              <Card className="h-full border-none shadow-lg hover:shadow-xl transition-shadow bg-white/50 backdrop-blur-sm rounded-3xl overflow-hidden group">
+                <CardHeader className="pb-2">
+                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <f.icon className="h-7 w-7 text-primary" />
+                  </div>
+                  <CardTitle className="text-xl">{f.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription className="text-base leading-relaxed">
+                    {f.desc}
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </motion.div>
       </div>
 
       {/* How It Works */}
-      <div className="bg-muted/50 py-16">
+      <div className="bg-muted/30 py-24 border-y border-primary/5">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center space-y-4">
-              <div className="h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold mx-auto">
-                1
-              </div>
-              <h3 className="text-xl font-semibold">Host Creates Session</h3>
-              <p className="text-muted-foreground">
-                Click "Create Session" to generate a unique QR code and session link
-              </p>
-            </div>
+          <motion.h2
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-4xl font-bold text-center mb-16"
+          >
+            How It Works
+          </motion.h2>
 
-            <div className="text-center space-y-4">
-              <div className="h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold mx-auto">
-                2
-              </div>
-              <h3 className="text-xl font-semibold">Participants Join</h3>
-              <p className="text-muted-foreground">
-                Scan QR code with phone, enter name and phone number to join the session
-              </p>
-            </div>
-
-            <div className="text-center space-y-4">
-              <div className="h-16 w-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold mx-auto">
-                3
-              </div>
-              <h3 className="text-xl font-semibold">Live Audio Q&A</h3>
-              <p className="text-muted-foreground">
-                Participants raise hands, host grants permission, audio streams in real-time
-              </p>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            {[
+              { step: "1", title: "Host Creates Session", desc: "Start a session to get your unique QR code and 6-digit link." },
+              { step: "2", title: "Participants Join", desc: "Scan or type the code. No login required for your audience." },
+              { step: "3", title: "Live Audio Q&A", desc: "Manage permissions and stream high-quality audio instantly." }
+            ].map((s, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.2 }}
+                className="text-center space-y-6 relative"
+              >
+                <div className="h-20 w-20 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-3xl font-black mx-auto shadow-xl ring-8 ring-primary/10">
+                  {s.step}
+                </div>
+                <h3 className="text-2xl font-bold">{s.title}</h3>
+                <p className="text-muted-foreground text-lg leading-relaxed">
+                  {s.desc}
+                </p>
+              </motion.div>
+            ))}
           </div>
         </div>
       </div>
