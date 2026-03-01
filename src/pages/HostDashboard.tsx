@@ -175,7 +175,7 @@ export function HostDashboard() {
   const grantMicPermission = async (participant: Participant) => {
     try {
       await blink.db.participants.update(participant.id, { hasMicPermission: 1, handRaised: 0 })
-      
+
       // Send permission via realtime
       await channelRef.current?.publish('webrtc', {
         type: 'mic-permission',
@@ -194,10 +194,10 @@ export function HostDashboard() {
 
   const denyMicPermission = async (participant: Participant) => {
     try {
-      await blink.db.participants.update(participant.id, { 
-        hasMicPermission: 0, 
+      await blink.db.participants.update(participant.id, {
+        hasMicPermission: 0,
         handRaised: 0,
-        isSpeaking: 0 
+        isSpeaking: 0
       })
 
       // Send denial via realtime
@@ -280,7 +280,7 @@ export function HostDashboard() {
 
   const endSession = async () => {
     try {
-      await blink.db.sessions.update(sessionId!, { 
+      await blink.db.sessions.update(sessionId!, {
         isActive: 0,
         endedAt: new Date().toISOString()
       })
@@ -353,7 +353,7 @@ export function HostDashboard() {
             return (
               <div
                 key={participant.id}
-                className={`stat-card flex flex-col gap-4 border-l-4 ${isSpeaking ? 'border-l-success' : 'border-l-transparent'}`}
+                className={`user-card flex flex-col gap-4 ${isSpeaking ? 'success-border' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -380,12 +380,12 @@ export function HostDashboard() {
                       Grant Mic
                     </Button>
                   )}
-                  
+
                   {hasPermission && (
                     <>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        size="sm"
+                        variant="outline"
                         className={isMuted ? "text-danger" : "text-primary"}
                         onClick={() => isMuted ? unmuteParticipant(participant) : muteParticipant(participant)}
                       >
