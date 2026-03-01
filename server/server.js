@@ -23,11 +23,16 @@ const io = new Server(httpServer, {
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
 app.use(express.json());
 
+// Request logger
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+    next();
+});
+
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URL || "YOUR_MONGO_URL")
+mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log("MongoDB connected"))
     .catch(err => console.error("MongoDB error:", err));
-
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
 
@@ -109,6 +114,7 @@ app.post("/login", async (req, res) => {
             JWT_SECRET
         );
 
+        console.log(`User login successful: ${email}`);
         return res.json({
             token,
             user: {
@@ -120,7 +126,8 @@ app.post("/login", async (req, res) => {
             }
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Login error:", err);
+        return res.status(500).json({ error: err.message });
     }
 });
 
