@@ -80,23 +80,25 @@ app.post("/signup", async (req, res) => {
         const hashed = await bcrypt.hash(password, 10);
         const user = await User.create({
             name,
-            email,
+            email: email.toLowerCase(),
             phone,
             password: hashed,
             role: role || "participant"
         });
 
-        res.json({ message: "User created", userId: user._id });
+        return res.json({ message: "User created", userId: user._id });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Signup error:", err);
+        return res.status(500).json({ error: err.message });
     }
 });
 
-// 🔐 LOGIN
 app.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        if (!email || !password) return res.status(400).json({ error: "Missing fields" });
+
+        const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) return res.status(400).json({ error: "User not found" });
 
         const isMatch = await bcrypt.compare(password, user.password);
