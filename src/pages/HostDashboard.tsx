@@ -300,55 +300,68 @@ export function HostDashboard() {
   const speakingCount = participants.filter(p => Number(p.isSpeaking) > 0).length
 
   return (
-    <div className="flex-1 p-8 bg-dot-pattern">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
-        <div>
-          <h1 className="text-4xl font-black text-foreground mb-2">Session Dashboard</h1>
-          <p className="text-muted-foreground font-medium flex items-center gap-2">
-            <Radio className="h-4 w-4 text-primary animate-pulse" />
-            Managing live audio interaction • {sessionCode}
-          </p>
+    <div className="flex-1 p-8 bg-dot-pattern transition-theme relative overflow-hidden">
+      {/* Decorative Background Elements */}
+      <div className="absolute top-[-5%] left-[-5%] w-[30%] h-[30%] bg-primary/5 rounded-full blur-[100px] animate-pulse" />
+      <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] animate-pulse" />
+
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 relative z-10">
+        <div className="flex items-center gap-5">
+          <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center shadow-lg shadow-primary/5">
+            <Radio className="h-7 w-7 text-primary animate-pulse" />
+          </div>
+          <div>
+            <h1 className="text-4xl font-black text-foreground tracking-tight">Broadcast Center</h1>
+            <p className="text-muted-foreground font-bold uppercase tracking-widest text-[10px] flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              Live Interaction Console • {sessionCode}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="flex items-center gap-2 px-4 py-2 bg-success/10 border border-success/20 rounded-full text-success font-bold text-sm shadow-sm"
+            className="flex items-center gap-3 px-6 py-2.5 bg-success/10 border border-success/20 rounded-full text-success font-black text-xs tracking-widest shadow-lg shadow-success/5"
           >
-            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-            LIVE SESSION
+            <span className="h-2 w-2 rounded-full bg-success animate-ping" />
+            ON AIR
           </motion.div>
 
-          <button
-            className="danger-btn flex items-center gap-2 px-6 py-2 rounded-full text-sm font-bold shadow-lg shadow-danger/20"
+          <Button
+            variant="ghost"
+            className="h-12 w-12 rounded-2xl hover:bg-destructive/10 hover:text-destructive transition-all border border-transparent hover:border-destructive/20"
             onClick={endSession}
           >
-            <LogOut className="h-4 w-4" /> End Session
-          </button>
+            <LogOut className="h-6 w-6" />
+          </Button>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-12">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-16 relative z-10">
         {/* Quick Stats */}
-        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
-            { label: "Participants", val: connectedCount, icon: Users, color: "primary" },
-            { label: "Speakers", val: speakingCount, icon: Mic, color: "success" },
-            { label: "Requests", val: handRaisedCount, icon: Radio, color: "danger" }
+            { label: "Listeners", val: connectedCount, icon: Users, color: "primary", gradient: "from-primary/20 to-primary/5" },
+            { label: "On Mic", val: speakingCount, icon: Mic, color: "success", gradient: "from-success/20 to-success/5" },
+            { label: "Requests", val: handRaisedCount, icon: Radio, color: "destructive", gradient: "from-destructive/20 to-destructive/5" }
           ].map((s, i) => (
             <motion.div
               key={i}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.1 }}
-              className="stat-card p-6 rounded-3xl group overflow-hidden relative glass-morphism border-none shadow-xl"
+              className="stat-card p-10 rounded-[2.5rem] group overflow-hidden relative glass-morphism border-none shadow-2xl"
             >
-              <div className={`absolute -right-6 -bottom-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity`}>
-                <s.icon size={110} />
+              <div className={`absolute -right-8 -bottom-8 opacity-[0.05] group-hover:opacity-[0.1] transition-all duration-700 transform group-hover:scale-110 group-hover:rotate-6`}>
+                <s.icon size={150} />
               </div>
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">{s.label}</h3>
-              <p className={`text-5xl font-black text-${s.color} tracking-tighter`}>{s.val}</p>
+              <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${s.gradient} flex items-center justify-center mb-6`}>
+                <s.icon className={`h-6 w-6 text-${s.color}`} />
+              </div>
+              <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">{s.label}</h3>
+              <p className={`text-6xl font-black text-foreground tracking-tighter`}>{s.val}</p>
             </motion.div>
           ))}
         </div>
@@ -357,34 +370,39 @@ export function HostDashboard() {
         <motion.div
           initial={{ x: 20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className="stat-card p-6 rounded-3xl glass-morphism border-primary/10 flex flex-col items-center justify-center shadow-xl relative overflow-hidden group"
+          className="stat-card p-10 rounded-[2.5rem] glass-morphism border-none flex flex-col items-center justify-center shadow-2xl relative overflow-hidden group"
         >
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Share2 className="h-12 w-12" />
+          <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-6 relative z-10">
+            <Share2 className="h-5 w-5" />
           </div>
-          <span className="text-[10px] font-bold text-primary mb-4 tracking-[0.2em] uppercase">Scan to Join</span>
-          <div className="bg-white p-3 rounded-2xl shadow-2xl border border-primary/5 mb-4 group-hover:scale-105 transition-transform duration-500">
-            <QRCodeSVG value={joinUrl} size={110} />
+          <span className="text-[10px] font-black text-primary mb-6 tracking-[0.25em] uppercase relative z-10">Invite Audience</span>
+          <div className="bg-white p-4 rounded-3xl shadow-2xl border border-primary/5 mb-8 group-hover:scale-110 transition-transform duration-700 relative z-10">
+            <QRCodeSVG value={joinUrl} size={140} />
           </div>
-          <button
+          <Button
+            variant="secondary"
+            className="w-full h-12 rounded-2xl font-black text-xs tracking-widest relative z-10"
             onClick={() => {
               navigator.clipboard.writeText(joinUrl)
-              toast.success('Link copied!')
+              toast.success('Access link copied!')
             }}
-            className="text-[10px] font-black tracking-widest text-muted-foreground hover:text-primary transition-colors uppercase"
           >
-            {sessionCode}
-          </button>
+            COPY LINK • {sessionCode}
+          </Button>
         </motion.div>
       </div>
 
-      <section className="space-y-6">
+      <section className="space-y-8 relative z-10">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-black flex items-center gap-3">
-            <Users className="h-6 w-6 text-primary" />
-            Live Queue
-          </h2>
-          <div className="h-[1px] flex-1 bg-primary/10 mx-6 opacity-50" />
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
+            <h2 className="text-2xl font-black tracking-tight">Active Participants</h2>
+          </div>
+          <div className="h-[1px] flex-1 bg-primary/10 mx-8 opacity-50" />
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{connectedCount} Total</p>
         </div>
 
         <motion.div
@@ -405,85 +423,84 @@ export function HostDashboard() {
                   key={participant.id}
                   layout
                   variants={item}
-                  whileHover={{ scale: 1.05 }}
+                  whileHover={{ y: -5 }}
                   exit={{ scale: 0.9, opacity: 0 }}
-                  animate={
-                    isSpeaking
-                      ? { boxShadow: "0 0 20px rgba(16,185,129,0.7)" }
-                      : { boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }
-                  }
-                  transition={{ duration: 0.3 }}
-                  className="user-card relative p-6 glass-morphism border-none overflow-hidden rounded-3xl cursor-pointer"
+                  className={`user-card relative p-8 glass-morphism border-none overflow-hidden rounded-[2rem] shadow-xl group transition-all duration-500 ${isSpeaking ? 'ring-2 ring-success shadow-[0_0_30px_rgba(16,185,129,0.2)]' : ''}`}
                   onClick={() => setSelectedParticipant(participant)}
                 >
-                  {isSpeaking && <div className="absolute inset-0 bg-success/5 speaking-pulse" />}
+                  <div className={`absolute inset-0 bg-gradient-to-br ${isSpeaking ? 'from-success/10 to-transparent' : 'from-primary/5 to-transparent'} opacity-0 group-hover:opacity-100 transition-opacity`} />
 
                   <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl font-black text-primary">
-                        {participant.name.charAt(0)}
+                    <div className="flex items-start justify-between mb-8">
+                      <div className={`h-16 w-16 rounded-[1.25rem] flex items-center justify-center text-3xl font-black transition-all duration-500 shadow-lg ${isSpeaking ? 'bg-success text-white scale-110' : 'bg-primary/10 text-primary'}`}>
+                        {participant.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <AnimatePresence>
                           {isSpeaking && (
-                            <motion.div initial={{ x: 10, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 10, opacity: 0 }}>
-                              <Badge className="bg-success text-white border-none py-1 px-3 rounded-full text-[10px] font-black uppercase tracking-widest">Live</Badge>
+                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                              <div className="h-8 px-4 rounded-full bg-success text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-success/20">
+                                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                                Speaking
+                              </div>
                             </motion.div>
                           )}
-                          {handRaised && !hasPermission && (
+                          {!isSpeaking && handRaised && !hasPermission && (
                             <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              exit={{ scale: 0 }}
-                              className="h-4 w-4 flex items-center justify-center rounded-full bg-primary shadow-lg shadow-primary/20"
+                              initial={{ y: -10, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              className="h-10 w-10 flex items-center justify-center rounded-2xl bg-amber-500 text-white shadow-lg shadow-amber-500/20"
                             >
-                              <div className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                              <Hand className="h-5 w-5 animate-bounce" />
                             </motion.div>
                           )}
                         </AnimatePresence>
                       </div>
                     </div>
 
-                    <div className="mb-6">
-                      <h4 className="text-xl font-black text-foreground mb-1 leading-tight">{participant.name}</h4>
-                      <p className="text-[10px] font-bold text-muted-foreground tracking-[0.15em] uppercase opacity-70">{participant.phone}</p>
+                    <div className="mb-8">
+                      <h4 className="text-2xl font-black text-foreground mb-1 tracking-tight">{participant.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-success opacity-50" />
+                        <p className="text-[10px] font-black text-muted-foreground tracking-[0.2em] uppercase">{participant.phone || 'GUEST'}</p>
+                      </div>
                     </div>
 
                     {isSpeaking && remoteStreams.get(participant.id) && (
-                      <div className="mb-4 -mx-2">
+                      <div className="mb-6 -mx-2 h-12">
                         <AudioWaveform stream={remoteStreams.get(participant.id)!} />
                       </div>
                     )}
 
-                    <div className="flex gap-3">
+                    <div className="flex gap-4">
                       <AnimatePresence mode="wait">
                         {!hasPermission ? (
                           <motion.button
                             key="grant"
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            className={`primary-btn flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl ${handRaised ? 'animate-bounce-subtle' : 'opacity-70 grayscale'}`}
-                            onClick={() => grantMicPermission(participant)}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className={`flex-1 h-14 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${handRaised ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'bg-muted/50 text-muted-foreground opacity-50'}`}
+                            onClick={(e) => { e.stopPropagation(); grantMicPermission(participant); }}
                           >
-                            <Mic className="h-4 w-4" /> <span>Invite</span>
+                            <Mic className="h-5 w-5" /> <span>Invite</span>
                           </motion.button>
                         ) : (
                           <motion.div
                             key="controls"
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
                             className="flex gap-2 w-full"
                           >
                             <button
-                              className={`flex-1 flex items-center justify-center py-3 rounded-2xl font-black text-xs transition-all ${isMuted ? 'bg-danger/10 text-danger hover:bg-danger/20' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
-                              onClick={() => isMuted ? unmuteParticipant(participant) : muteParticipant(participant)}
+                              className={`flex-1 h-14 rounded-2xl flex items-center justify-center transition-all ${isMuted ? 'bg-destructive/10 text-destructive hover:bg-destructive/20' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
+                              onClick={(e) => { e.stopPropagation(); isMuted ? unmuteParticipant(participant) : muteParticipant(participant); }}
                             >
-                              {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                              {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
                             </button>
                             <button
-                              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
-                              onClick={() => denyMicPermission(participant)}
+                              className="flex-1 h-14 rounded-2xl bg-muted/50 hover:bg-muted text-foreground font-black text-[10px] uppercase tracking-widest transition-all"
+                              onClick={(e) => { e.stopPropagation(); denyMicPermission(participant); }}
                             >
                               Revoke
                             </button>
@@ -492,10 +509,10 @@ export function HostDashboard() {
                       </AnimatePresence>
 
                       <button
-                        className="w-12 h-12 flex items-center justify-center rounded-2xl bg-muted/50 hover:bg-danger/10 hover:text-danger text-muted-foreground transition-all"
-                        onClick={() => removeParticipant(participant)}
+                        className="w-14 h-14 flex items-center justify-center rounded-2xl bg-muted/30 hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all"
+                        onClick={(e) => { e.stopPropagation(); removeParticipant(participant); }}
                       >
-                        <UserX className="h-5 w-5" />
+                        <UserX className="h-6 w-6" />
                       </button>
                     </div>
                   </div>

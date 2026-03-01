@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings2, User, Phone, Mail, Shield, Save, LogOut, ArrowLeftRight } from 'lucide-react'
+import { Settings2, User, Phone, Mail, Shield, Save, LogOut, ArrowLeftRight, Moon, Sun, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -8,11 +8,13 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { motion } from 'framer-motion'
+import { useTheme } from '@/components/theme-provider'
 
 export function Settings() {
     const [user, setUser] = useState<any>(null)
     const [loading, setLoading] = useState(false)
     const [form, setForm] = useState({ name: '', phone: '', role: '' })
+    const { theme, setTheme } = useTheme()
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user')
@@ -53,7 +55,7 @@ export function Settings() {
     if (!user) return null
 
     return (
-        <div className="flex-1 p-8 bg-dot-pattern max-w-4xl mx-auto">
+        <div className="flex-1 p-8 bg-dot-pattern max-w-4xl mx-auto transition-theme">
             <header className="mb-12">
                 <div className="flex items-center gap-4 mb-2">
                     <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -67,9 +69,49 @@ export function Settings() {
             </header>
 
             <div className="grid gap-8">
+                {/* Visual Preference Section */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
+                >
+                    <Card className="glass-morphism border-none shadow-xl rounded-[2rem] overflow-hidden">
+                        <CardHeader className="border-b border-primary/5 bg-primary/5 pb-8">
+                            <CardTitle className="flex items-center gap-2">
+                                <Sun className="h-5 w-5 text-primary" />
+                                Appearance
+                            </CardTitle>
+                            <CardDescription>
+                                Customize the look and feel of your dashboard
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-8 space-y-6">
+                            <div className="grid grid-cols-3 gap-4">
+                                {[
+                                    { id: 'light', icon: Sun, label: 'Light' },
+                                    { id: 'dark', icon: Moon, label: 'Dark' },
+                                    { id: 'system', icon: Monitor, label: 'System' },
+                                ].map((t) => (
+                                    <button
+                                        key={t.id}
+                                        onClick={() => setTheme(t.id as any)}
+                                        className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-all ${theme === t.id
+                                                ? 'border-primary bg-primary/5 text-primary shadow-lg shadow-primary/5'
+                                                : 'border-border bg-card text-muted-foreground hover:border-primary/30'
+                                            }`}
+                                    >
+                                        <t.icon className={`h-6 w-6 ${theme === t.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                                        <span className="text-xs font-black uppercase tracking-tight">{t.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </motion.div>
+
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
                 >
                     <Card className="glass-morphism border-none shadow-xl rounded-[2rem] overflow-hidden">
                         <CardHeader className="border-b border-primary/5 bg-primary/5 pb-8">
@@ -126,7 +168,7 @@ export function Settings() {
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
+                    transition={{ delay: 0.2 }}
                 >
                     <Card className="glass-morphism border-none shadow-xl rounded-[2rem] overflow-hidden">
                         <CardHeader className="border-b border-primary/5 bg-primary/5 pb-8">
@@ -139,11 +181,11 @@ export function Settings() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-8 space-y-6">
-                            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex gap-4 items-start">
+                            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex gap-4 items-start">
                                 <ArrowLeftRight className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                                 <div>
-                                    <p className="text-sm font-black text-amber-900 mb-1">Role Switching Information</p>
-                                    <p className="text-xs font-medium text-amber-700 leading-relaxed">
+                                    <p className="text-sm font-black text-amber-900 dark:text-amber-200 mb-1">Role Switching Information</p>
+                                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400 leading-relaxed">
                                         Changing your role from **Participant** to **Host** will enable the session creation tools.
                                         If you switch to **Participant**, you will primarily join existing sessions.
                                     </p>
@@ -189,7 +231,7 @@ export function Settings() {
                 <div className="flex items-center justify-between pt-4">
                     <Button
                         variant="outline"
-                        className="h-12 px-8 rounded-xl border-2 border-danger/10 text-danger font-black hover:bg-danger/5"
+                        className="h-12 px-8 rounded-xl border-2 border-destructive/10 text-destructive font-black hover:bg-destructive/5"
                         onClick={() => {
                             localStorage.clear()
                             window.location.href = '/login'

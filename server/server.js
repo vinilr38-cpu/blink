@@ -144,9 +144,17 @@ app.post("/login", async (req, res) => {
         app.post("/sessions/create", async (req, res) => {
             try {
                 const { sessionId, hostId } = req.body;
-                const session = await Session.create({ sessionId, hostId, participants: [] });
-                res.json({ message: "Session created", session });
+                let session = await Session.findOne({ sessionId });
+                if (!session) {
+                    session = await Session.create({
+                        sessionId,
+                        hostId: hostId ? String(hostId) : "anonymous",
+                        participants: []
+                    });
+                }
+                res.json({ message: "Session indexed", session });
             } catch (err) {
+                console.error("Session Create Error:", err);
                 res.status(500).json({ error: err.message });
             }
         });

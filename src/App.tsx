@@ -20,6 +20,8 @@ function SidebarItem({ icon, label, to, collapsed }: { icon: string; label: stri
   )
 }
 
+import { ThemeProvider } from "./components/theme-provider"
+
 function AppContent() {
   const location = useLocation()
   const isParticipant = location.pathname.startsWith('/join/')
@@ -30,92 +32,92 @@ function AppContent() {
   // Auth guard — redirect to login if no token and not on public pages
   const token = localStorage.getItem("token")
   const user = JSON.parse(localStorage.getItem("user") || "null")
+
   if (!token && !isParticipant && !isAuthPage) {
     return <Navigate to="/login" />
   }
 
   return (
-    <div className="dashboard">
+    <div className="dashboard transition-theme">
       {!hideSidebar && (
         <motion.aside
-          animate={{ width: collapsed ? 80 : 260 }}
-          transition={{ duration: 0.4, ease: "linear" }}
-          className="sidebar"
+          initial={false}
+          animate={{ width: collapsed ? 80 : 280 }}
+          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+          className="sidebar bg-card border-r border-border"
         >
-          <button
-            className="collapse-btn"
-            onClick={() => setCollapsed(!collapsed)}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            ☰
-          </button>
-
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-3 mb-8 px-2"
+          <div className="p-6 flex flex-col h-full">
+            <div className="flex items-center justify-between mb-10">
+              <AnimatePresence mode="wait">
+                {!collapsed && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    className="flex items-center gap-3"
+                  >
+                    <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/25">
+                      <span className="text-white font-black text-xl">B</span>
+                    </div>
+                    <h2 className="text-xl font-black text-foreground tracking-tight">Smart Audio</h2>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <button
+                className="h-10 w-10 rounded-xl hover:bg-muted flex items-center justify-center transition-colors text-muted-foreground hover:text-primary"
+                onClick={() => setCollapsed(!collapsed)}
               >
-                <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
-                  <span className="text-white font-black text-lg">B</span>
-                </div>
-                <h2 className="text-lg font-black text-foreground tracking-tight whitespace-nowrap">Smart Audio</h2>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <nav className="nav">
-            <SidebarItem icon="🎤" label="Sessions" to="/" collapsed={collapsed} />
-            <SidebarItem icon="👥" label="Participants" to="/participants" collapsed={collapsed} />
-            <SidebarItem icon="⚙️" label="Settings" to="/settings" collapsed={collapsed} />
-          </nav>
-
-          {user?.role === 'host' && (
-            <div className="mt-auto">
-              <motion.button
-                className="primary-btn w-full flex items-center justify-center gap-2 py-3"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => window.location.href = '/'}
-              >
-                <span>🎙️</span>
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: 'auto' }}
-                      exit={{ opacity: 0, width: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="whitespace-nowrap overflow-hidden"
-                    >
-                      Create Session
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.button>
+                {collapsed ? '→' : '←'}
+              </button>
             </div>
-          )}
+
+            <nav className="nav space-y-2">
+              <SidebarItem icon="🎤" label="Sessions" to="/" collapsed={collapsed} />
+              <SidebarItem icon="👥" label="Participants" to="/participants" collapsed={collapsed} />
+              <SidebarItem icon="⚙️" label="Settings" to="/settings" collapsed={collapsed} />
+            </nav>
+
+            {user?.role === 'host' && (
+              <div className="mt-auto">
+                <motion.button
+                  className="primary-btn w-full flex items-center justify-center gap-3 py-4 text-sm font-bold shadow-2xl shadow-primary/30"
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => window.location.href = '/'}
+                >
+                  <span className="text-lg">🎙️</span>
+                  {!collapsed && <span>Create Session</span>}
+                </motion.button>
+              </div>
+            )}
+          </div>
         </motion.aside>
       )}
 
       <motion.main
-        className="main-content"
-        animate={{ marginLeft: hideSidebar ? 0 : collapsed ? 80 : 260 }}
-        transition={{ duration: 0.4, ease: "linear" }}
+        className="main-content relative overflow-hidden"
+        animate={{ marginLeft: hideSidebar ? 0 : collapsed ? 80 : 280 }}
+        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       >
-        <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/participants" element={<Participants />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/host/:sessionId" element={<HostDashboard />} />
-            <Route path="/join/:sessionCode" element={<ParticipantView />} />
-          </Routes>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+            className="min-h-full"
+          >
+            <Routes location={location}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/participants" element={<Participants />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/host/:sessionId" element={<HostDashboard />} />
+              <Route path="/join/:sessionCode" element={<ParticipantView />} />
+            </Routes>
+          </motion.div>
         </AnimatePresence>
       </motion.main>
     </div>
@@ -124,10 +126,10 @@ function AppContent() {
 
 function App() {
   return (
-    <>
+    <ThemeProvider defaultTheme="light" storageKey="blink-theme">
       <AppContent />
-      <Toaster position="top-center" />
-    </>
+      <Toaster position="top-right" closeButton richColors />
+    </ThemeProvider>
   )
 }
 

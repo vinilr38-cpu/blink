@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const sessionSchema = new mongoose.Schema({
     sessionId: { type: String, unique: true },
-    hostId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    hostId: { type: String },
     participants: [{
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         name: String,
