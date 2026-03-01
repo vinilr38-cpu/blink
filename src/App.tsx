@@ -6,8 +6,8 @@ import { HostDashboard } from './pages/HostDashboard'
 import { ParticipantView } from './pages/ParticipantView'
 import { Participants } from './pages/Participants'
 import { Settings } from './pages/Settings'
-import Login from './pages/Login.jsx'
-import Signup from './pages/Signup.jsx'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
 import { motion, AnimatePresence } from "framer-motion"
 import "./App.css"
 
@@ -38,7 +38,7 @@ function AppContent() {
       {!hideSidebar && (
         <motion.aside
           animate={{ width: collapsed ? 80 : 260 }}
-          transition={{ duration: 0.4, ease: "linear" } as any}
+          transition={{ duration: 0.4, ease: "linear" }}
           className="sidebar"
         >
           <button
@@ -101,7 +101,7 @@ function AppContent() {
       <motion.main
         className="main-content"
         animate={{ marginLeft: hideSidebar ? 0 : collapsed ? 80 : 260 }}
-        transition={{ duration: 0.4, ease: "linear" } as any}
+        transition={{ duration: 0.4, ease: "linear" }}
       >
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
