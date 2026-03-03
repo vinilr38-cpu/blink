@@ -34,10 +34,13 @@ export function Settings() {
         setLoading(true)
         try {
             const res = await api.put('/users/profile', {
-                id: user.id,
+                id: user.id || user._id,
                 ...form
             })
-            const updatedUser = res.data.user
+            const updatedUser = {
+                ...res.data.user,
+                id: res.data.user.id || res.data.user._id
+            }
             localStorage.setItem('user', JSON.stringify(updatedUser))
             setUser(updatedUser)
             toast.success('Profile updated successfully!')

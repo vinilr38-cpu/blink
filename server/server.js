@@ -129,6 +129,7 @@ app.post("/login", async (req, res) => {
             token,
             user: {
                 id: user._id,
+                _id: user._id,
                 name: user.name,
                 email: user.email,
                 phone: user.phone,
@@ -157,6 +158,7 @@ app.put("/users/profile", async (req, res) => {
             message: "Profile updated",
             user: {
                 id: user._id,
+                _id: user._id, // Consistent with login response
                 name: user.name,
                 email: user.email,
                 phone: user.phone,
@@ -199,4 +201,4 @@ app.get("/sessions/:sessionId/participants", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5001;
-httpServer.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));

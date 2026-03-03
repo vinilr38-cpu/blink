@@ -187,7 +187,7 @@ export function ParticipantView() {
 
       socketRef.current.emit("join-session", {
         ...joinData,
-        sessionId: session.sessionCode // The user logic uses sessionId for the findOne, but in our DB it's stored as sessionId. Wait.
+        sessionId: session.id // Use the unique session.id for DB lookups on backend
       })
 
       // Sync with our backend via REST (optional but keeping for reliability unless requested otherwise)
