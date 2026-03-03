@@ -37,7 +37,10 @@ app.use((req, res, next) => {
 if (!process.env.MONGO_URL) {
     console.error("FATAL: MONGO_URL not found in environment variables.");
 }
-mongoose.connect(process.env.MONGO_URL)
+mongoose.connect(process.env.MONGO_URL, {
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    connectTimeoutMS: 10000,
+})
     .then(() => console.log("MongoDB connected successfully"))
     .catch(err => {
         console.error("MongoDB connection error:", err);

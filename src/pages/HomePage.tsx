@@ -58,7 +58,7 @@ export function HomePage() {
       return
     }
 
-    const storedUser = JSON.parse(localStorage.getItem('user') || 'null')
+    const storedUser = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null') } catch { return null } })()
     if (storedUser && storedUser.role === 'host') {
       try {
         toast.info('Switching your role to participant to join the session...')
