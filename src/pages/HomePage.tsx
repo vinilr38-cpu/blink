@@ -16,7 +16,7 @@ export function HomePage() {
   const [joinCode, setJoinCode] = useState('')
 
   const createSession = async () => {
-    const storedUser = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null') } catch { return null } })()
+    const storedUser = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null') } catch (e) { return null } })()
 
     if (storedUser && storedUser.role === 'participant') {
       toast.error('Access Denied: Participants cannot host sessions. Please change your role in Settings to proceed.')
@@ -58,7 +58,7 @@ export function HomePage() {
       return
     }
 
-    const storedUser = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null') } catch { return null } })()
+    const storedUser = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null') } catch (e) { return null } })()
     if (storedUser && storedUser.role === 'host') {
       try {
         toast.info('Switching your role to participant to join the session...')
