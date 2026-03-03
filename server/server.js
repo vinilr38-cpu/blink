@@ -20,7 +20,11 @@ const io = new Server(httpServer, {
     }
 });
 
-app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}));
 app.use(express.json());
 
 // Request logger
@@ -30,9 +34,15 @@ app.use((req, res, next) => {
 });
 
 // Connect to MongoDB
+if (!process.env.MONGO_URL) {
+    console.error("FATAL: MONGO_URL not found in environment variables.");
+}
 mongoose.connect(process.env.MONGO_URL)
-    .then(() => console.log("MongoDB connected"))
-    .catch(err => console.error("MongoDB error:", err));
+    .then(() => console.log("MongoDB connected successfully"))
+    .catch(err => {
+        console.error("MongoDB connection error:", err);
+        process.exit(1); // Exit if DB connection fails in production
+    });
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
 

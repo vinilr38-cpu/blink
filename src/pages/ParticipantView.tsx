@@ -18,7 +18,7 @@ import AudioWaveform from '@/components/AudioWaveform'
 import { io } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'https://blink-3.onrender.com'
 
 export function ParticipantView() {
   const { sessionCode } = useParams()
