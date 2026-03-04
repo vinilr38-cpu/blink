@@ -59,7 +59,7 @@ export function HostDashboard() {
         setSessionCode(session.sessionCode)
 
         const parts = await blink.db.participants.list({
-          where: { sessionId, isConnected: "1" },
+          where: { sessionId, isConnected: 1 },
           orderBy: { joinedAt: 'asc' }
         })
         if (mounted) setParticipants(parts)
@@ -315,16 +315,16 @@ export function HostDashboard() {
       <div className="absolute top-[-5%] left-[-5%] w-[30%] h-[30%] bg-primary/5 rounded-full blur-[100px] animate-pulse" />
       <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] animate-pulse" />
 
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 relative z-10">
-        <div className="flex items-center gap-5">
-          <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center shadow-lg shadow-primary/5">
-            <Radio className="h-7 w-7 text-primary animate-pulse" />
+      <header className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-12 relative z-10">
+        <div className="flex items-center gap-4 w-full sm:w-auto">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shadow-lg">
+            <Radio className="h-6 w-6 text-primary animate-pulse" />
           </div>
           <div>
-            <h1 className="text-4xl font-black text-foreground tracking-tight">Broadcast Center</h1>
-            <p className="text-muted-foreground font-bold uppercase tracking-widest text-[10px] flex items-center gap-2">
+            <h1 className="text-2xl md:text-4xl font-black text-foreground tracking-tight">Broadcast Center</h1>
+            <p className="text-muted-foreground font-bold uppercase tracking-widest text-[9px] flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              Live Interaction Console • {sessionCode}
+              Live interaction • {sessionCode}
             </p>
           </div>
         </div>
@@ -362,7 +362,7 @@ export function HostDashboard() {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: i * 0.1 }}
-              className="stat-card p-10 rounded-[2.5rem] group overflow-hidden relative glass-morphism border-none shadow-2xl"
+              className="stat-card p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] group overflow-hidden relative glass-morphism border-none shadow-2xl"
             >
               <div className={`absolute -right-8 -bottom-8 opacity-[0.05] group-hover:opacity-[0.1] transition-all duration-700 transform group-hover:scale-110 group-hover:rotate-6`}>
                 <s.icon size={150} />
@@ -371,7 +371,7 @@ export function HostDashboard() {
                 <s.icon className={`h-6 w-6 text-${s.color}`} />
               </div>
               <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">{s.label}</h3>
-              <p className={`text-6xl font-black text-foreground tracking-tighter`}>{s.val}</p>
+              <p className={`text-4xl md:text-6xl font-black text-foreground tracking-tighter`}>{s.val}</p>
             </motion.div>
           ))}
         </div>

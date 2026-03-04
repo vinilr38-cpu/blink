@@ -28,6 +28,7 @@ function AppContent() {
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
   const hideSidebar = isParticipant || isAuthPage
   const [collapsed, setCollapsed] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   // Auth guard — redirect to login if no token and not on public pages
   const token = localStorage.getItem("token")
@@ -45,12 +46,16 @@ function AppContent() {
 
   return (
     <div className="dashboard transition-theme">
+      {/* Desktop Sidebar */}
       {!hideSidebar && (
         <motion.aside
           initial={false}
-          animate={{ width: collapsed ? 80 : 280 }}
+          animate={{
+            width: collapsed ? 80 : 280,
+            x: 0
+          }}
           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-          className="sidebar bg-card border-r border-border"
+          className="sidebar bg-card border-r border-border hidden lg:flex"
         >
           <div className="p-6 flex flex-col h-full">
             <div className="flex items-center justify-between mb-10">
@@ -100,9 +105,63 @@ function AppContent() {
         </motion.aside>
       )}
 
+      {/* Mobile Menu Button */}
+      {!hideSidebar && (
+        <div className="lg:hidden fixed top-4 left-4 z-[100]">
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="h-12 w-12 rounded-2xl bg-primary text-white shadow-xl flex items-center justify-center text-xl"
+          >
+            {isMobileMenuOpen ? '✕' : '☰'}
+          </button>
+        </div>
+      )}
+
+      {/* Mobile Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && !hideSidebar && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] lg:hidden"
+            />
+            <motion.aside
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed top-0 left-0 bottom-0 w-[280px] bg-card border-r border-border z-[90] lg:hidden"
+            >
+              <div className="p-8 flex flex-col h-full">
+                <div className="flex items-center gap-3 mb-10">
+                  <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center">
+                    <span className="text-white font-black text-xl">B</span>
+                  </div>
+                  <h2 className="text-xl font-black text-foreground tracking-tight">Smart Audio</h2>
+                </div>
+                <nav className="nav space-y-3" onClick={() => setIsMobileMenuOpen(false)}>
+                  <SidebarItem icon="🎤" label="Sessions" to="/" collapsed={false} />
+                  <SidebarItem icon="👥" label="Participants" to="/participants" collapsed={false} />
+                  <SidebarItem icon="⚙️" label="Settings" to="/settings" collapsed={false} />
+                </nav>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
       <motion.main
-        className="main-content relative"
-        animate={{ marginLeft: hideSidebar ? 0 : collapsed ? 80 : 280 }}
+        className="main-content relative w-full"
+        initial={false}
+        animate={{
+          paddingLeft: 0,
+          marginLeft: hideSidebar ? 0 : 0, // Reset margin
+          x: hideSidebar ? 0 : (window.innerWidth >= 1024 ? (collapsed ? 80 : 280) : 0)
+        }}
+        style={{ width: '100%' }} // Ensure main-content takes full width
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       >
         <AnimatePresence mode="wait" initial={false}>

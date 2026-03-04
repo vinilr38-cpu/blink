@@ -148,7 +148,7 @@ export function ParticipantView() {
     setIsConnecting(true)
     try {
       const sessions = await blink.db.sessions.list({
-        where: { sessionCode, isActive: "1" },
+        where: { sessionCode, isActive: 1 },
         limit: 1
       })
 
