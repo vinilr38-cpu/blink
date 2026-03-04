@@ -235,6 +235,36 @@ app.get("/sessions/lookup/:code", async (req, res) => {
     }
 });
 
+// ─── JOIN SESSION (REST) ──────────────────────────────────────────────────────
+app.post("/sessions/join", async (req, res) => {
+    try {
+        const { sessionId, name, phone, email, userId } = req.body;
+        if (!sessionId || !name) return res.status(400).json({ error: "Missing fields" });
+
+        const db = readDB();
+        const session = db.sessions.find(s => s.sessionId === sessionId);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        // Check if participant already exists in this session
+        const existing = session.participants.find(p => p.email === email || (userId && p.userId === userId));
+
+        if (!existing) {
+            session.participants.push({
+                userId: userId || null,
+                name,
+                phone: phone || "",
+                email: email || "",
+                joinedAt: new Date().toISOString()
+            });
+            writeDB(db);
+        }
+
+        res.json({ message: "Joined successfully", sessionId: session.sessionId });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── GET PARTICIPANTS ─────────────────────────────────────────────────────────
 app.get("/sessions/:sessionId/participants", async (req, res) => {
     try {

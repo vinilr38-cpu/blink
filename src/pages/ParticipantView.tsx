@@ -168,7 +168,7 @@ export function ParticipantView() {
       })
 
       const joinData = {
-        sessionId: session.id,
+        sessionId: realSessionId,
         name: name.trim(),
         phone: phone.trim(),
         email: user ? user.email : email.trim(),
@@ -180,16 +180,10 @@ export function ParticipantView() {
         socketRef.current = io(SOCKET_URL)
       }
 
-      socketRef.current.emit("join-session", {
-        ...joinData,
-        sessionId: session.id // Use the unique session.id for DB lookups on backend
-      })
+      socketRef.current.emit("join-session", joinData)
 
-      // Sync with our backend via REST (optional but keeping for reliability unless requested otherwise)
-      // await axios.post('http://localhost:5001/sessions/join', {
-      //   sessionCode: session.sessionCode,
-      //   ...joinData
-      // })
+      // Sync with our backend via REST for maximum reliability across devices
+      await api.post('/sessions/join', joinData)
 
       // The socket logic: since we use Blink SDK, we'll emit this to the host via the realtime channel
       // We'll do this once the channel is initialized in the useEffect
