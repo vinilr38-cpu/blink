@@ -20,7 +20,11 @@ import type { Socket } from 'socket.io-client'
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'https://blink-3.onrender.com'
+// Auto-detect local network testing
+const isLocalNetwork = window.location.hostname === 'localhost' || /^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(window.location.hostname);
+const defaultSocketUrl = isLocalNetwork ? `http://${window.location.hostname}:5001` : 'https://blink-3.onrender.com';
+const SOCKET_URL = import.meta.env.VITE_API_URL || defaultSocketUrl;
+
 
 export function ParticipantView() {
   const { sessionCode } = useParams()
