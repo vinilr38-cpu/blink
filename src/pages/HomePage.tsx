@@ -115,7 +115,7 @@ export function HomePage() {
               Live Audio Management System
             </motion.div>
 
-            <motion.h1 variants={itemVariants} className="text-5xl lg:text-7xl font-extrabold tracking-tight">
+            <motion.h1 variants={itemVariants} className="text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-tight">
               Interactive Audio
               <span className="block text-primary drop-shadow-sm">Session Manager</span>
             </motion.h1>
@@ -236,7 +236,7 @@ export function HomePage() {
             viewport={{ once: true }}
             className="text-center mb-24"
           >
-            <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4 italic">Simplicity by Design</h2>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight mb-4 italic">Simplicity by Design</h2>
             <p className="text-muted-foreground font-medium max-w-xl mx-auto">Three steps to launch your interactive broadcast.</p>
           </motion.div>
 

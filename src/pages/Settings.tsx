@@ -58,7 +58,7 @@ export function Settings() {
     if (!user) return null
 
     return (
-        <div className="w-full min-h-full p-8 bg-dot-pattern max-w-4xl mx-auto transition-theme pb-20">
+        <div className="w-full min-h-full p-4 sm:p-8 bg-dot-pattern max-w-4xl mx-auto transition-theme pb-20">
             <header className="mb-12">
                 <div className="flex items-center gap-4 mb-2">
                     <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -87,7 +87,7 @@ export function Settings() {
                                 Customize the look and feel of your dashboard
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="p-8 space-y-6">
+                        <CardContent className="p-4 sm:p-8 space-y-6">
                             <div className="grid grid-cols-3 gap-4">
                                 {[
                                     { id: 'light', icon: Sun, label: 'Light' },
@@ -126,7 +126,7 @@ export function Settings() {
                                 Update your contact details and how you appear to others
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="p-8 space-y-6">
+                        <CardContent className="p-4 sm:p-8 space-y-6">
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <Label className="text-xs font-black uppercase tracking-widest ml-1 text-muted-foreground">Full Name</Label>
@@ -183,7 +183,7 @@ export function Settings() {
                                 Switch your account role to access different features
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="p-8 space-y-6">
+                        <CardContent className="p-4 sm:p-8 space-y-6">
                             <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex gap-4 items-start">
                                 <ArrowLeftRight className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                                 <div>
@@ -204,6 +204,7 @@ export function Settings() {
                                     <RadioGroupItem value="participant" id="participant" className="peer sr-only" />
                                     <Label
                                         htmlFor="participant"
+                                        onClick={() => setForm({ ...form, role: 'participant' })}
                                         className="flex flex-col items-center justify-between rounded-2xl border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
                                     >
                                         <User className="mb-3 h-8 w-8 text-muted-foreground peer-data-[state=checked]:text-primary" />
@@ -217,6 +218,7 @@ export function Settings() {
                                     <RadioGroupItem value="host" id="host" className="peer sr-only" />
                                     <Label
                                         htmlFor="host"
+                                        onClick={() => setForm({ ...form, role: 'host' })}
                                         className="flex flex-col items-center justify-between rounded-2xl border-2 border-muted bg-popover p-6 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all"
                                     >
                                         <Shield className="mb-3 h-8 w-8 text-muted-foreground peer-data-[state=checked]:text-primary" />
