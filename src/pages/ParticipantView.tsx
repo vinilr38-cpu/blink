@@ -20,7 +20,7 @@ import type { Socket } from 'socket.io-client'
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'https://blink-3.onrender.com'
 
 export function ParticipantView() {
   const { sessionCode } = useParams()
