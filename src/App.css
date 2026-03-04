@@ -91,13 +91,10 @@
 
 .main-content {
   flex: 1;
-  padding: 30px;
   overflow-y: auto;
   position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  transition: margin-left 0.4s ease;
   background: hsl(var(--background));
-  transition: background-color 0.4s ease, margin-left 0.4s ease;
 }

@@ -11,6 +11,7 @@ import { Mic, MicOff, UserX, Users, Radio, LogOut, Share2, Hand, Volume2, Headph
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import AudioWaveform from '@/components/AudioWaveform'
+import api from '@/lib/api'
 
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
@@ -58,11 +59,16 @@ export function HostDashboard() {
 
         setSessionCode(session.sessionCode)
 
-        const parts = await blink.db.participants.list({
-          where: { sessionId, isConnected: 1 },
-          orderBy: { joinedAt: 'asc' }
-        })
-        if (mounted) setParticipants(parts)
+        const fetchParticipants = async () => {
+          try {
+            const res = await api.get(`/sessions/${sessionId}/participants`)
+            if (mounted) setParticipants(res.data.participants)
+          } catch (err) {
+            console.error("Failed to fetch participants:", err)
+          }
+        }
+
+        await fetchParticipants()
 
         webrtcRef.current = new WebRTCManager(`session-${sessionId}`)
         channel = blink.realtime.channel(`session-${sessionId}`)
@@ -72,12 +78,18 @@ export function HostDashboard() {
 
         channel.onMessage(async (msg: any) => {
           if (!mounted || msg.type !== 'webrtc') return
-          const message: WebRTCMessage = msg.data
+          const message = msg.data as any // Use any to bypass strict WebRTCMessage type check for join-session
           if (message.to !== sessionId) return
           const participantId = message.from
 
           try {
             switch (message.type) {
+              case 'join-session':
+                // Refresh list from backend when someone joins
+                fetchParticipants()
+                toast.success(`${message.data.name} joined the session`)
+                break
+
               case 'offer':
                 await webrtcRef.current!.createPeerConnection(
                   participantId,

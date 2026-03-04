@@ -153,16 +153,8 @@ function AppContent() {
         )}
       </AnimatePresence>
 
-      <motion.main
-        className="main-content relative w-full"
-        initial={false}
-        animate={{
-          paddingLeft: 0,
-          marginLeft: hideSidebar ? 0 : 0, // Reset margin
-          x: hideSidebar ? 0 : (window.innerWidth >= 1024 ? (collapsed ? 80 : 280) : 0)
-        }}
-        style={{ width: '100%' }} // Ensure main-content takes full width
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+      <main
+        className="main-content relative flex-1 min-w-0 overflow-y-auto"
       >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -191,7 +183,7 @@ function AppContent() {
             </Routes>
           </motion.div>
         </AnimatePresence>
-      </motion.main>
+      </main>
     </div>
   )
 }
