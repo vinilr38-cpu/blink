@@ -200,13 +200,14 @@ app.put("/users/profile", async (req, res) => {
 // ─── SESSION CREATE ───────────────────────────────────────────────────────────
 app.post("/sessions/create", async (req, res) => {
     try {
-        const { sessionId, hostId } = req.body;
+        const { sessionId, hostId, sessionCode } = req.body;
         const db = readDB();
 
         let session = db.sessions.find(s => s.sessionId === sessionId);
         if (!session) {
             session = {
                 sessionId,
+                sessionCode: sessionCode || "",
                 hostId: hostId ? String(hostId) : "anonymous",
                 participants: [],
                 createdAt: new Date().toISOString()
@@ -218,6 +219,18 @@ app.post("/sessions/create", async (req, res) => {
         res.json({ message: "Session indexed", session });
     } catch (err) {
         console.error("Session Create Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── LOOKUP SESSION ──────────────────────────────────────────────────────────
+app.get("/sessions/lookup/:code", async (req, res) => {
+    try {
+        const db = readDB();
+        const session = db.sessions.find(s => s.sessionCode === req.params.code.toUpperCase());
+        if (!session) return res.status(404).json({ error: "Session not found" });
+        res.json({ sessionId: session.sessionId });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

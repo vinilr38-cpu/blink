@@ -37,6 +37,7 @@ export function HomePage() {
       // Sync with our backend
       await api.post('/sessions/create', {
         sessionId: session.id,
+        sessionCode: session.sessionCode,
         hostId: storedUser ? storedUser.id : 'anonymous'
       })
 

@@ -147,23 +147,16 @@ export function ParticipantView() {
 
     setIsConnecting(true)
     try {
-      const sessions = await blink.db.sessions.list({
-        where: { sessionCode, isActive: 1 },
-        limit: 1
-      })
+      // 🌐 Fetch session from the actual backend (db.json) for cross-device support
+      const res = await api.get(`/sessions/lookup/${sessionCode}`)
+      const realSessionId = res.data.sessionId
 
-      if (sessions.length === 0) {
-        toast.error('Session not found')
-        setIsConnecting(false)
-        return
-      }
+      setSessionId(realSessionId)
 
-      const session = sessions[0]
-      setSessionId(session.id)
-
+      // Create local participant record in SDK for WebRTC management
       const participant = await blink.db.participants.create({
         id: `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sessionId: session.id,
+        sessionId: realSessionId,
         name: name.trim(),
         phone: phone.trim(),
         email: user ? user.email : email.trim(),
