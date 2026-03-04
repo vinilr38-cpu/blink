@@ -1,4 +1,3 @@
-import { blink } from './blink'
 
 export class WebRTCManager {
   private peerConnections: Map<string, RTCPeerConnection> = new Map()

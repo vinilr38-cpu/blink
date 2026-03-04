@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { blink as blinkSDK } from '@/lib/blink'
-const blink = blinkSDK as any
-import { Mic, Users, Radio, Headphones, Play, ArrowRight } from 'lucide-react'
+import { Mic, Users, Radio, Headphones, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/lib/api'
+
+// Cast blink to any to avoid TS errors on dynamic SDK methods
+const blink = blinkSDK as any
 
 export function HomePage() {
   const navigate = useNavigate()

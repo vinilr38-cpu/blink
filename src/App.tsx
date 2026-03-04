@@ -31,7 +31,7 @@ function AppContent() {
 
   // Auth guard — redirect to login if no token and not on public pages
   const token = localStorage.getItem("token")
-  const user = JSON.parse(localStorage.getItem("user") || "null")
+  const user = (() => { try { return JSON.parse(localStorage.getItem("user") || "null") } catch { return null } })()
 
   if (!token && !isParticipant && !isAuthPage) {
     return <Navigate to="/login" />

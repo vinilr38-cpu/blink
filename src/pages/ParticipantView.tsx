@@ -7,10 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { blink as blinkSDK } from '@/lib/blink'
-const blink = blinkSDK as any
 import { WebRTCManager } from '@/lib/webrtc'
 import { WebRTCMessage } from '@/types'
-import { Hand, Mic, MicOff, Volume2, VolumeX, ArrowLeft, Headphones, Radio } from 'lucide-react'
+import { Hand, Mic, MicOff, ArrowLeft, Headphones, Radio } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/lib/api'
@@ -18,7 +17,10 @@ import AudioWaveform from '@/components/AudioWaveform'
 import { io } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'https://blink-3.onrender.com'
+// Cast blink to any to avoid TS errors on dynamic SDK methods
+const blink = blinkSDK as any
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
 
 export function ParticipantView() {
   const { sessionCode } = useParams()

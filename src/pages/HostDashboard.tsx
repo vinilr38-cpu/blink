@@ -2,17 +2,18 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { blink as blinkSDK } from '@/lib/blink'
-const blink = blinkSDK as any
 import { WebRTCManager } from '@/lib/webrtc'
 import { Participant, WebRTCMessage } from '@/types'
 import { Mic, MicOff, UserX, Users, Radio, LogOut, Share2, Hand, Volume2, Headphones } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import AudioWaveform from '@/components/AudioWaveform'
+
+// Cast blink to any to avoid TS errors on dynamic SDK methods
+const blink = blinkSDK as any
 
 const container: any = {
   hidden: { opacity: 0 },

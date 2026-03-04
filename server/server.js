@@ -1,23 +1,44 @@
 import express from "express";
-import mongoose from "mongoose";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import User from "./models/User.js";
-import Session from "./models/Session.js";
+import { readFileSync, writeFileSync, existsSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// ─── FILE-BASED DATABASE ─────────────────────────────────────────────────────
+const DB_FILE = join(__dirname, "db.json");
+
+function readDB() {
+    if (!existsSync(DB_FILE)) {
+        const initial = { users: [], sessions: [] };
+        writeFileSync(DB_FILE, JSON.stringify(initial, null, 2));
+        return initial;
+    }
+    try {
+        return JSON.parse(readFileSync(DB_FILE, "utf8"));
+    } catch {
+        return { users: [], sessions: [] };
+    }
+}
+
+function writeDB(data) {
+    writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+}
+
+// ─── SERVER SETUP ─────────────────────────────────────────────────────────────
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST", "PUT"]
-    }
+    cors: { origin: "*", methods: ["GET", "POST", "PUT"] }
 });
 
 app.use(cors({
@@ -27,51 +48,35 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Request logger
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
     next();
 });
 
-// Connect to MongoDB
-if (!process.env.MONGO_URL) {
-    console.error("FATAL: MONGO_URL not found in environment variables.");
-}
-mongoose.connect(process.env.MONGO_URL, {
-    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-    connectTimeoutMS: 10000,
-})
-    .then(() => console.log("MongoDB connected successfully"))
-    .catch(err => {
-        console.error("MongoDB connection error:", err);
-        process.exit(1); // Exit if DB connection fails in production
-    });
+const JWT_SECRET = process.env.JWT_SECRET || "blink_secret_key_2024";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
+// ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
+app.get("/", (req, res) => res.json({ status: "Server running (file-based storage)" }));
 
-// ❤️ Health check
-app.get("/", (req, res) => res.json({ status: "Server running" }));
-
-// 🌐 SOCKET.IO LOGIC
+// ─── SOCKET.IO ────────────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
-    socket.on("join-session", async (data) => {
+    socket.on("join-session", (data) => {
         try {
-            const session = await Session.findOne({ sessionId: data.sessionId });
-            if (!session) return;
-
-            session.participants.push({
-                userId: data.userId,
-                name: data.name,
-                phone: data.phone,
-                email: data.email,
-                joinedAt: new Date()
-            });
-
-            await session.save();
-            console.log(`User ${data.name} joined session ${data.sessionId}`);
-
+            const db = readDB();
+            const session = db.sessions.find(s => s.sessionId === data.sessionId);
+            if (session) {
+                session.participants.push({
+                    userId: data.userId || null,
+                    name: data.name,
+                    phone: data.phone,
+                    email: data.email,
+                    joinedAt: new Date().toISOString()
+                });
+                writeDB(db);
+                console.log(`User ${data.name} joined session ${data.sessionId}`);
+            }
             socket.join(data.sessionId);
             io.to(data.sessionId).emit("participant-joined", {
                 name: data.name,
@@ -87,47 +92,63 @@ io.on("connection", (socket) => {
     });
 });
 
-// 🔐 SIGNUP
+// ─── SIGNUP ──────────────────────────────────────────────────────────────────
 app.post("/signup", async (req, res) => {
     try {
         const { name, email, phone, password, role } = req.body;
-        if (!email || !password || !name) return res.status(400).json({ error: "Missing required fields" });
-        const existing = await User.findOne({ email: email.toLowerCase() });
-        if (existing) return res.status(400).json({ error: "Email already in use" });
+        if (!email || !password || !name) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const db = readDB();
+        const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+        if (existing) {
+            return res.status(400).json({ error: "Email already in use" });
+        }
 
         const hashed = await bcrypt.hash(password, 10);
-        const user = await User.create({
+        const newUser = {
+            _id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             name,
             email: email.toLowerCase(),
-            phone,
+            phone: phone || "",
             password: hashed,
-            role: role || "participant"
-        });
+            role: role || "participant",
+            createdAt: new Date().toISOString()
+        };
+        db.users.push(newUser);
+        writeDB(db);
 
-        return res.json({ message: "User created", userId: user._id });
+        console.log(`User created: ${email}`);
+        return res.json({ message: "User created", userId: newUser._id });
     } catch (err) {
         console.error("Signup error:", err);
         return res.status(500).json({ error: err.message });
     }
 });
 
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
 app.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        if (!email || !password) return res.status(400).json({ error: "Missing fields" });
+        if (!email || !password) {
+            return res.status(400).json({ error: "Missing fields" });
+        }
 
-        const user = await User.findOne({ email: email.toLowerCase() });
-        if (!user) return res.status(400).json({ error: "User not found" });
+        const db = readDB();
+        const user = db.users.find(u => u.email === email.toLowerCase());
+        if (!user) {
+            return res.status(400).json({ error: "User not found" });
+        }
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({ error: "Wrong password" });
+        if (!isMatch) {
+            return res.status(400).json({ error: "Wrong password" });
+        }
 
-        const token = jwt.sign(
-            { id: user._id, role: user.role },
-            JWT_SECRET
-        );
-
+        const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET);
         console.log(`User login successful: ${email}`);
+
         return res.json({
             token,
             user: {
@@ -145,23 +166,26 @@ app.post("/login", async (req, res) => {
     }
 });
 
-// 👤 UPDATE PROFILE
+// ─── UPDATE PROFILE ───────────────────────────────────────────────────────────
 app.put("/users/profile", async (req, res) => {
     try {
         const { id, name, phone, role } = req.body;
         if (!id) return res.status(400).json({ error: "User ID is required" });
-        const user = await User.findByIdAndUpdate(
-            id,
-            { name, phone, role },
-            { new: true }
-        );
+
+        const db = readDB();
+        const user = db.users.find(u => u._id === id);
         if (!user) return res.status(404).json({ error: "User not found" });
 
-        res.json({
+        if (name) user.name = name;
+        if (phone) user.phone = phone;
+        if (role) user.role = role;
+        writeDB(db);
+
+        return res.json({
             message: "Profile updated",
             user: {
                 id: user._id,
-                _id: user._id, // Consistent with login response
+                _id: user._id,
                 name: user.name,
                 email: user.email,
                 phone: user.phone,
@@ -173,18 +197,24 @@ app.put("/users/profile", async (req, res) => {
     }
 });
 
-// 🎙️ SESSION CREATE
+// ─── SESSION CREATE ───────────────────────────────────────────────────────────
 app.post("/sessions/create", async (req, res) => {
     try {
         const { sessionId, hostId } = req.body;
-        let session = await Session.findOne({ sessionId });
+        const db = readDB();
+
+        let session = db.sessions.find(s => s.sessionId === sessionId);
         if (!session) {
-            session = await Session.create({
+            session = {
                 sessionId,
                 hostId: hostId ? String(hostId) : "anonymous",
-                participants: []
-            });
+                participants: [],
+                createdAt: new Date().toISOString()
+            };
+            db.sessions.push(session);
+            writeDB(db);
         }
+
         res.json({ message: "Session indexed", session });
     } catch (err) {
         console.error("Session Create Error:", err);
@@ -192,10 +222,11 @@ app.post("/sessions/create", async (req, res) => {
     }
 });
 
-// 📋 GET ALL PARTICIPANTS (for Participants page)
+// ─── GET PARTICIPANTS ─────────────────────────────────────────────────────────
 app.get("/sessions/:sessionId/participants", async (req, res) => {
     try {
-        const session = await Session.findOne({ sessionId: req.params.sessionId });
+        const db = readDB();
+        const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
         if (!session) return res.status(404).json({ error: "Session not found" });
         res.json({ participants: session.participants });
     } catch (err) {
@@ -203,5 +234,6 @@ app.get("/sessions/:sessionId/participants", async (req, res) => {
     }
 });
 
+// ─── START SERVER ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT} — using file-based storage (db.json)`));
