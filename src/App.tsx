@@ -163,7 +163,7 @@ function AppContent() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
-            className="min-h-full w-full max-w-full overflow-hidden break-words"
+            className="min-h-full w-full max-w-full overflow-x-hidden break-words"
           >
             <Routes location={location}>
               <Route path="/" element={<HomePage />} />
