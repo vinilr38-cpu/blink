@@ -206,7 +206,9 @@ export function HostDashboard() {
 
   const updateSpeakingStatus = async (participantId: string, isSpeaking: boolean) => {
     try {
-      await blink.db.participants.update(participantId, { isSpeaking: isSpeaking ? 1 : 0 })
+      await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+        isSpeaking: isSpeaking ? 1 : 0
+      })
       refreshParticipants()
     } catch (error) {
       console.error('Failed to update speaking status:', error)
@@ -215,13 +217,18 @@ export function HostDashboard() {
 
   const grantMicPermission = async (participant: Participant) => {
     try {
-      await blink.db.participants.update(participant.id, { hasMicPermission: 1, handRaised: 0 })
+      await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
+        hasMicPermission: 1,
+        handRaised: 0
+      })
+
       await channelRef.current?.publish('webrtc', {
         type: 'mic-permission',
         from: sessionId,
         to: participant.id,
         data: { granted: true }
       }, { userId: sessionId })
+
       refreshParticipants()
       toast.success(`Mic permission granted to ${participant.name}`)
     } catch (error) {
@@ -232,17 +239,19 @@ export function HostDashboard() {
 
   const denyMicPermission = async (participant: Participant) => {
     try {
-      await blink.db.participants.update(participant.id, {
+      await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
         hasMicPermission: 0,
         handRaised: 0,
         isSpeaking: 0
       })
+
       await channelRef.current?.publish('webrtc', {
         type: 'mic-permission',
         from: sessionId,
         to: participant.id,
         data: { granted: false }
       }, { userId: sessionId })
+
       webrtcRef.current?.closePeerConnection(participant.id)
       refreshParticipants()
       toast.success(`Mic permission revoked from ${participant.name}`)
@@ -254,13 +263,17 @@ export function HostDashboard() {
 
   const muteParticipant = async (participant: Participant) => {
     try {
-      await blink.db.participants.update(participant.id, { isMuted: 1 })
+      await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
+        isMuted: 1
+      })
+
       await channelRef.current?.publish('webrtc', {
         type: 'mute',
         from: sessionId,
         to: participant.id,
         data: {}
       }, { userId: sessionId })
+
       refreshParticipants()
       toast.success(`Muted ${participant.name}`)
     } catch (error) {
@@ -271,13 +284,17 @@ export function HostDashboard() {
 
   const unmuteParticipant = async (participant: Participant) => {
     try {
-      await blink.db.participants.update(participant.id, { isMuted: 0 })
+      await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
+        isMuted: 0
+      })
+
       await channelRef.current?.publish('webrtc', {
         type: 'unmute',
         from: sessionId,
         to: participant.id,
         data: {}
       }, { userId: sessionId })
+
       refreshParticipants()
       toast.success(`Unmuted ${participant.name}`)
     } catch (error) {
@@ -288,13 +305,15 @@ export function HostDashboard() {
 
   const removeParticipant = async (participant: Participant) => {
     try {
-      await blink.db.participants.update(participant.id, { isConnected: 0 })
+      await api.post(`/sessions/${sessionId}/participants/${participant.id}/remove`)
+
       await channelRef.current?.publish('webrtc', {
         type: 'remove',
         from: sessionId,
         to: participant.id,
         data: {}
       }, { userId: sessionId })
+
       webrtcRef.current?.closePeerConnection(participant.id)
       refreshParticipants()
       toast.success(`Removed ${participant.name}`)

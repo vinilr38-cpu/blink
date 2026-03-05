@@ -71,18 +71,32 @@ io.on("connection", (socket) => {
 
     socket.on("join-session", (data) => {
         try {
+            const { sessionId, userId, name, phone, email } = data;
             const db = readDB();
-            const session = db.sessions.find(s => s.sessionId === data.sessionId);
+            const session = db.sessions.find(s => s.sessionId === sessionId);
             if (session) {
-                session.participants.push({
-                    userId: data.userId || null,
-                    name: data.name,
-                    phone: data.phone,
-                    email: data.email,
-                    joinedAt: new Date().toISOString()
-                });
-                writeDB(db);
-                console.log(`User ${data.name} joined session ${data.sessionId}`);
+                // Deduplicate: check if this specific user (by ID or Email) is already in the list
+                const exists = session.participants.some(p =>
+                    (userId && p.userId === userId) || (email && p.email === email)
+                );
+
+                if (!exists) {
+                    session.participants.push({
+                        id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        userId: userId || null,
+                        name,
+                        phone: phone || "",
+                        email: email || "",
+                        isConnected: 1,
+                        hasMicPermission: 0,
+                        isMuted: 0,
+                        isSpeaking: 0,
+                        handRaised: 0,
+                        joinedAt: new Date().toISOString()
+                    });
+                    writeDB(db);
+                    console.log(`Socket Join: Added ${name} to ${sessionId}`);
+                }
             }
             socket.join(data.sessionId);
             io.to(data.sessionId).emit("participant-joined", {
@@ -272,17 +286,27 @@ app.post("/sessions/join", async (req, res) => {
         console.log(`Joining participant ${name} to session ${sessionId}`);
 
         // Check if participant already exists in this session
-        const existing = session.participants.find(p => p.email === email || (userId && p.userId === userId));
+        const existing = session.participants.find(p =>
+            (email && p.email === email) || (userId && p.userId === userId)
+        );
 
         if (!existing) {
-            session.participants.push({
+            const newParticipant = {
+                id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 userId: userId || null,
                 name,
                 phone: phone || "",
                 email: email || "",
+                isConnected: 1,
+                hasMicPermission: 0,
+                isMuted: 0,
+                isSpeaking: 0,
+                handRaised: 0,
                 joinedAt: new Date().toISOString()
-            });
+            };
+            session.participants.push(newParticipant);
             writeDB(db);
+            console.log(`REST Join: Added ${name} to ${sessionId}`);
         }
 
         res.json({ message: "Joined successfully", sessionId: session.sessionId });
@@ -343,6 +367,52 @@ app.post("/sessions/:sessionId/hand-lower", async (req, res) => {
 
         io.to(req.params.sessionId).emit("hand-lower", { participantId, name });
         res.json({ message: "Hand lowered" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── UPDATE PARTICIPANT STATE ────────────────────────────────────────────────
+app.post("/sessions/:sessionId/participants/:participantId/update", async (req, res) => {
+    try {
+        const { sessionId, participantId } = req.params;
+        const updates = req.body; // e.g., { hasMicPermission: 1, isMuted: 0 }
+
+        const db = readDB();
+        const session = db.sessions.find(s => s.sessionId === sessionId);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        const participant = session.participants.find(p => p.id === participantId);
+        if (!participant) return res.status(404).json({ error: "Participant not found" });
+
+        // Apply updates
+        Object.keys(updates).forEach(key => {
+            participant[key] = updates[key];
+        });
+
+        writeDB(db);
+
+        // Broadcast the update to all clients in the session
+        io.to(sessionId).emit("participant-updated", { participantId, updates });
+
+        res.json({ message: "Participant updated", participant });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post("/sessions/:sessionId/participants/:participantId/remove", async (req, res) => {
+    try {
+        const { sessionId, participantId } = req.params;
+        const db = readDB();
+        const session = db.sessions.find(s => s.sessionId === sessionId);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        session.participants = session.participants.filter(p => p.id !== participantId);
+        writeDB(db);
+
+        io.to(sessionId).emit("participant-removed", { participantId });
+        res.json({ message: "Participant removed" });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
