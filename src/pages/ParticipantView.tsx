@@ -152,8 +152,9 @@ export function ParticipantView() {
     setIsConnecting(true)
     try {
       // 🌐 Fetch session from the actual backend (db.json) for cross-device support
-      const res = await api.get(`/sessions/lookup/${sessionCode}`)
+      const res = await api.get(`/sessions/lookup/${sessionCode?.trim()}`)
       const realSessionId = res.data.sessionId
+      toast.info('Step 1: Session found, syncing SDK...')
 
       setSessionId(realSessionId)
 
@@ -170,6 +171,7 @@ export function ParticipantView() {
         isSpeaking: 0,
         handRaised: 0
       })
+      toast.info('Step 2: SDK synced, joining via REST...')
 
       const joinData = {
         sessionId: realSessionId,
@@ -188,6 +190,7 @@ export function ParticipantView() {
 
       // Sync with our backend via REST for maximum reliability across devices
       await api.post('/sessions/join', joinData)
+      toast.info('Step 3: Registration complete!')
 
       // The socket logic: since we use Blink SDK, we'll emit this to the host via the realtime channel
       // We'll do this once the channel is initialized in the useEffect
@@ -195,9 +198,24 @@ export function ParticipantView() {
       setParticipantId(participant.id)
       setStage('waiting')
       toast.success('Connected to live session')
-    } catch (error) {
-      console.error('Failed to join session:', error)
-      toast.error('Connection failed')
+    } catch (error: any) {
+      console.error('CRITICAL: Join Session Failed', {
+        error,
+        code: sessionCode,
+        participant: name,
+        stack: error.stack
+      })
+
+      let errorMsg = 'Connection failed'
+      if (error.response) {
+        errorMsg = `Server Error: ${error.response.data?.error || error.response.statusText}`
+      } else if (error.request) {
+        errorMsg = 'Network Error: Backend unreachable. Check if you are on the same Wi-Fi.'
+      } else {
+        errorMsg = `Error: ${error.message}`
+      }
+
+      toast.error(errorMsg, { duration: 5000 })
     } finally {
       setIsConnecting(false)
     }

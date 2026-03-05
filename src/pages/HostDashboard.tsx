@@ -43,10 +43,8 @@ export function HostDashboard() {
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
 
-  // Use production URL fallback for QR code if running locally, ensuring external devices can connect
-  const productionFrontend = 'https://blink-flax-chi.vercel.app'
-  const currentOrigin = window.location.origin.includes('localhost') ? productionFrontend : window.location.origin
-  const joinUrl = `${currentOrigin}/join/${sessionCode}`
+  // Construct join URL using current origin
+  const joinUrl = `${window.location.origin}/join/${sessionCode}`
 
   useEffect(() => {
     if (!sessionId) return

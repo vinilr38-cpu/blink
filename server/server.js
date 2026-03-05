@@ -226,11 +226,24 @@ app.post("/sessions/create", async (req, res) => {
 // ─── LOOKUP SESSION ──────────────────────────────────────────────────────────
 app.get("/sessions/lookup/:code", async (req, res) => {
     try {
+        const { code } = req.params;
+        if (!code) return res.status(400).json({ error: "Code required" });
+
         const db = readDB();
-        const session = db.sessions.find(s => s.sessionCode === req.params.code.toUpperCase());
-        if (!session) return res.status(404).json({ error: "Session not found" });
-        res.json({ sessionId: session.sessionId });
+        // Case-insensitive find
+        const session = db.sessions.find(s => s.sessionCode && s.sessionCode.toUpperCase() === code.toUpperCase());
+
+        if (!session) {
+            console.log(`Session lookup failed for code: ${code}`);
+            return res.status(404).json({ error: "Session not found" });
+        }
+
+        res.json({
+            sessionId: session.sessionId,
+            sessionCode: session.sessionCode
+        });
     } catch (err) {
+        console.error("Lookup Error:", err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -243,7 +256,12 @@ app.post("/sessions/join", async (req, res) => {
 
         const db = readDB();
         const session = db.sessions.find(s => s.sessionId === sessionId);
-        if (!session) return res.status(404).json({ error: "Session not found" });
+        if (!session) {
+            console.log(`Join Failed: Session ${sessionId} not found in db.json`);
+            return res.status(404).json({ error: "Session not found" });
+        }
+
+        console.log(`Joining participant ${name} to session ${sessionId}`);
 
         // Check if participant already exists in this session
         const existing = session.participants.find(p => p.email === email || (userId && p.userId === userId));
@@ -279,4 +297,5 @@ app.get("/sessions/:sessionId/participants", async (req, res) => {
 
 // ─── START SERVER ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT} — using file-based storage (db.json)`));
+// Bind to 0.0.0.0 to ensure it accepts connections from the local network (LAN)
+httpServer.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT} — using file-based storage (db.json)`));
