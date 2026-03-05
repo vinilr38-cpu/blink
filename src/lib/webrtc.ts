@@ -3,10 +3,24 @@ export class WebRTCManager {
   private peerConnections: Map<string, RTCPeerConnection> = new Map()
   private localStream: MediaStream | null = null
   private audioElements: Map<string, HTMLAudioElement> = new Map()
+  private iceQueues: Map<string, RTCIceCandidateInit[]> = new Map()
   private channelName: string
+  private audioContainer: HTMLDivElement | null = null
 
   constructor(channelName: string) {
     this.channelName = channelName
+    // Create a hidden container for audio elements to ensure they stay in the DOM
+    if (typeof document !== 'undefined') {
+      const id = 'webrtc-audio-container'
+      let container = document.getElementById(id) as HTMLDivElement
+      if (!container) {
+        container = document.createElement('div')
+        container.id = id
+        container.style.display = 'none'
+        document.body.appendChild(container)
+      }
+      this.audioContainer = container
+    }
   }
 
   async initLocalStream() {
@@ -40,12 +54,16 @@ export class WebRTCManager {
     const configuration: RTCConfiguration = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
       ]
     }
 
     const pc = new RTCPeerConnection(configuration)
     this.peerConnections.set(peerId, pc)
+    this.iceQueues.set(peerId, [])
 
     // Handle ICE candidates
     pc.onicecandidate = (event) => {
@@ -55,16 +73,19 @@ export class WebRTCManager {
     }
 
     // Handle remote track
-    if (onTrack) {
-      pc.ontrack = (event) => {
-        const [remoteStream] = event.streams
-        onTrack(remoteStream)
-        this.playRemoteAudio(peerId, remoteStream)
+    pc.ontrack = (event) => {
+      console.log('Received remote track for', peerId)
+      let remoteStream = event.streams[0]
+      if (!remoteStream) {
+        remoteStream = new MediaStream([event.track])
       }
+
+      if (onTrack) onTrack(remoteStream)
+      this.playRemoteAudio(peerId, remoteStream)
     }
 
     // Add local stream tracks if available
-    if (this.localStream && isInitiator) {
+    if (this.localStream) {
       this.localStream.getTracks().forEach(track => {
         pc.addTrack(track, this.localStream!)
       })
@@ -79,11 +100,27 @@ export class WebRTCManager {
     if (!audio) {
       audio = new Audio()
       audio.autoplay = true
+      // Enable background play
+      audio.setAttribute('playsinline', 'true')
+      audio.setAttribute('webkit-playsinline', 'true')
+
+      if (this.audioContainer) {
+        this.audioContainer.appendChild(audio)
+      }
+
       this.audioElements.set(peerId, audio)
     }
 
     audio.srcObject = stream
-    audio.play().catch(e => console.error('Error playing audio:', e))
+    audio.play().catch(e => {
+      console.warn('Click required to play audio:', e)
+      // Attempt to play on next user interaction if blocked
+      const resume = () => {
+        audio?.play().catch(() => { })
+        document.removeEventListener('click', resume)
+      }
+      document.addEventListener('click', resume)
+    })
   }
 
   async createOffer(peerId: string): Promise<RTCSessionDescriptionInit> {
@@ -109,13 +146,7 @@ export class WebRTCManager {
     if (!pc) throw new Error('No peer connection found')
 
     await pc.setRemoteDescription(new RTCSessionDescription(offer))
-
-    // Add local stream tracks after setting remote description
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
-        pc.addTrack(track, this.localStream!)
-      })
-    }
+    await this.processIceQueue(peerId)
   }
 
   async handleAnswer(peerId: string, answer: RTCSessionDescriptionInit) {
@@ -123,13 +154,36 @@ export class WebRTCManager {
     if (!pc) throw new Error('No peer connection found')
 
     await pc.setRemoteDescription(new RTCSessionDescription(answer))
+    await this.processIceQueue(peerId)
   }
 
   async handleIceCandidate(peerId: string, candidate: RTCIceCandidateInit) {
     const pc = this.peerConnections.get(peerId)
-    if (!pc) throw new Error('No peer connection found')
+    if (!pc) return
 
-    await pc.addIceCandidate(new RTCIceCandidate(candidate))
+    if (!pc.remoteDescription) {
+      this.iceQueues.get(peerId)?.push(candidate)
+      return
+    }
+
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate))
+    } catch (e) {
+      console.error('Error adding ICE candidate:', e)
+    }
+  }
+
+  private async processIceQueue(peerId: string) {
+    const pc = this.peerConnections.get(peerId)
+    const queue = this.iceQueues.get(peerId)
+    if (!pc || !pc.remoteDescription || !queue) return
+
+    while (queue.length > 0) {
+      const candidate = queue.shift()
+      if (candidate) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(console.error)
+      }
+    }
   }
 
   muteLocalAudio() {
@@ -159,8 +213,11 @@ export class WebRTCManager {
     if (audio) {
       audio.pause()
       audio.srcObject = null
+      audio.remove()
       this.audioElements.delete(peerId)
     }
+
+    this.iceQueues.delete(peerId)
   }
 
   stopLocalStream() {

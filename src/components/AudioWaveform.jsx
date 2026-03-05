@@ -11,7 +11,17 @@ export default function AudioWaveform({ stream }) {
         const source = audioContext.createMediaStreamSource(stream);
 
         source.connect(analyser);
-        analyser.fftSize = 2048;
+        // Do NOT connect to destination here to avoid echo if the WebRTCManager is already playing it.
+        // However, we MUST ensure the context is running.
+        if (audioContext.state === 'suspended') {
+            const resume = () => {
+                if (audioContext.state === 'suspended') audioContext.resume();
+            };
+            document.addEventListener('click', resume, { once: true });
+            document.addEventListener('touchstart', resume, { once: true });
+        }
+
+        analyser.fftSize = 256; // Smaller fft for smoother waveform
 
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
