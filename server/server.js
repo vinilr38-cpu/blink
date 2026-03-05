@@ -303,6 +303,51 @@ app.get("/sessions/:sessionId/participants", async (req, res) => {
     }
 });
 
+// ─── RAISE HAND ───────────────────────────────────────────────────────────────
+app.post("/sessions/:sessionId/hand-raise", async (req, res) => {
+    try {
+        const { participantId, name } = req.body;
+        const db = readDB();
+        const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        const participant = session.participants.find(p => p.id === participantId || p.name === name);
+        if (participant) {
+            participant.handRaised = 1;
+            participant.handRaisedAt = new Date().toISOString();
+            writeDB(db);
+        }
+
+        // Broadcast via socket
+        io.to(req.params.sessionId).emit("hand-raise", { participantId, name });
+        res.json({ message: "Hand raised" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─── LOWER HAND ───────────────────────────────────────────────────────────────
+app.post("/sessions/:sessionId/hand-lower", async (req, res) => {
+    try {
+        const { participantId, name } = req.body;
+        const db = readDB();
+        const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        const participant = session.participants.find(p => p.id === participantId || p.name === name);
+        if (participant) {
+            participant.handRaised = 0;
+            participant.handRaisedAt = null;
+            writeDB(db);
+        }
+
+        io.to(req.params.sessionId).emit("hand-lower", { participantId, name });
+        res.json({ message: "Hand lowered" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── START SERVER ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;
 // Bind to 0.0.0.0 to ensure it accepts connections from the local network (LAN)

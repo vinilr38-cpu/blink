@@ -231,36 +231,49 @@ export function ParticipantView() {
   }
 
   const raiseHand = async () => {
-    if (!participantId || !sessionId || !channelRef.current) return
+    if (!participantId || !sessionId) return
     try {
       setHandRaised(true)
-      await blink.db.participants.update(participantId, {
-        handRaised: 1,
-        handRaisedAt: new Date().toISOString()
+      // Persist to REST backend
+      await api.post(`/sessions/${sessionId}/hand-raise`, {
+        participantId,
+        name: name.trim()
       })
-      await channelRef.current.publish('webrtc', {
-        type: 'hand-raise',
-        from: participantId,
-        to: sessionId,
-        data: { name }
-      }, { userId: participantId })
-      toast.success('Hand raised!')
-    } catch (error) {
+      // Notify host via realtime channel if connected
+      if (channelRef.current) {
+        await channelRef.current.publish('webrtc', {
+          type: 'hand-raise',
+          from: participantId,
+          to: sessionId,
+          data: { name: name.trim() }
+        }, { userId: participantId })
+      }
+      // Also notify via socket for reliability
+      socketRef.current?.emit('hand-raise', { sessionId, participantId, name: name.trim() })
+      toast.success('✋ Hand raised!')
+    } catch (error: any) {
       setHandRaised(false)
+      toast.error('Failed to raise hand: ' + (error?.message || 'Unknown error'))
     }
   }
 
   const lowerHand = async () => {
-    if (!participantId || !sessionId || !channelRef.current) return
+    if (!participantId || !sessionId) return
     try {
       setHandRaised(false)
-      await blink.db.participants.update(participantId, { handRaised: 0, handRaisedAt: null })
-      await channelRef.current.publish('webrtc', {
-        type: 'hand-lower',
-        from: participantId,
-        to: sessionId,
-        data: {}
-      }, { userId: participantId })
+      await api.post(`/sessions/${sessionId}/hand-lower`, {
+        participantId,
+        name: name.trim()
+      })
+      if (channelRef.current) {
+        await channelRef.current.publish('webrtc', {
+          type: 'hand-lower',
+          from: participantId,
+          to: sessionId,
+          data: { name: name.trim() }
+        }, { userId: participantId })
+      }
+      socketRef.current?.emit('hand-lower', { sessionId, participantId, name: name.trim() })
       toast.info('Hand lowered')
     } catch (error) { }
   }

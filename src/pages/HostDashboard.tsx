@@ -138,15 +138,23 @@ export function HostDashboard() {
                 if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(participantId, message.data)
                 break
               case 'hand-raise':
-                await blink.db.participants.update(participantId, {
-                  handRaised: 1,
-                  handRaisedAt: new Date().toISOString()
-                })
+                // Update via REST so it persists in db.json
+                try {
+                  await api.post(`/sessions/${sessionId}/hand-raise`, {
+                    participantId: message.from,
+                    name: message.data?.name
+                  })
+                } catch { }
                 refreshParticipants()
-                toast.info(`${message.data.name} raised their hand`)
+                toast.info(`✋ ${message.data?.name || 'A participant'} raised their hand`)
                 break
               case 'hand-lower':
-                await blink.db.participants.update(participantId, { handRaised: 0, handRaisedAt: null })
+                try {
+                  await api.post(`/sessions/${sessionId}/hand-lower`, {
+                    participantId: message.from,
+                    name: message.data?.name
+                  })
+                } catch { }
                 refreshParticipants()
                 break
               case 'participant-speaking':
@@ -189,11 +197,8 @@ export function HostDashboard() {
   const refreshParticipants = async () => {
     if (!sessionId) return
     try {
-      const parts = await blink.db.participants.list({
-        where: { sessionId, isConnected: "1" },
-        orderBy: { joinedAt: 'asc' }
-      })
-      setParticipants(parts)
+      const res = await api.get(`/sessions/${sessionId}/participants`)
+      setParticipants(res.data.participants || [])
     } catch (error) {
       console.error('Failed to refresh participants:', error)
     }
