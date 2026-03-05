@@ -59,6 +59,20 @@ export function HostDashboard() {
 
         setSessionCode(session.sessionCode)
 
+        // ✅ Always sync session to Render backend so participants can look it up
+        try {
+          const storedUser = localStorage.getItem('user')
+          const hostId = storedUser ? JSON.parse(storedUser).id : 'anonymous'
+          await api.post('/sessions/create', {
+            sessionId: session.id,
+            sessionCode: session.sessionCode,
+            hostId
+          })
+          console.log('Session synced to backend:', session.sessionCode)
+        } catch (syncErr: any) {
+          console.warn('Backend sync failed (non-critical):', syncErr?.message)
+        }
+
         const fetchParticipants = async () => {
           try {
             const res = await api.get(`/sessions/${sessionId}/participants`)

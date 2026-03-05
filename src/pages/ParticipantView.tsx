@@ -153,33 +153,15 @@ export function ParticipantView() {
     try {
       const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms));
 
-      // 🌐 Step 1: Lookup session
-      toast.info('Step 1: Looking up session...')
-      const lookupPromise = api.get(`/sessions/lookup/${sessionCode?.trim()}`)
+      // 🌐 Step 1: Lookup session code → get the real sessionId
+      toast.info('Looking up session...')
+      const lookupPromise = api.get(`/sessions/lookup/${sessionCode?.trim().toUpperCase()}`)
       const res: any = await Promise.race([lookupPromise, timeout(15000)])
 
       const realSessionId = res.data.sessionId
-      if (!realSessionId) throw new Error('Session ID not found in lookup response');
+      if (!realSessionId) throw new Error('Session not found — invalid code?');
 
       setSessionId(realSessionId)
-      toast.info('Step 2: Syncing with SDK...')
-
-      // Step 2: Create SDK participant record
-      const sdkPromise = blink.db.participants.create({
-        id: `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sessionId: realSessionId,
-        name: name.trim(),
-        phone: phone.trim(),
-        email: user ? user.email : email.trim(),
-        isConnected: 1,
-        hasMicPermission: 0,
-        isMuted: 0,
-        isSpeaking: 0,
-        handRaised: 0
-      })
-      const participant: any = await Promise.race([sdkPromise, timeout(15000)])
-
-      toast.info('Step 3: Joining via REST...')
 
       const joinData = {
         sessionId: realSessionId,
@@ -189,12 +171,13 @@ export function ParticipantView() {
         userId: user ? user.id : null
       }
 
-      // Step 3: Registration via REST
+      // 🔗 Step 2: Register via REST (primary join mechanism)
+      toast.info('Registering...')
       const restJoinPromise = api.post('/sessions/join', joinData)
       await Promise.race([restJoinPromise, timeout(15000)])
 
-      // 🔌 Step 4: Socket.io
-      toast.info('Step 4: Finalizing connection...')
+      // 🔌 Step 3: Connect via Socket.io for real-time sync
+      toast.info('Connecting live channel...')
       if (!socketRef.current) {
         socketRef.current = io(SOCKET_URL, {
           transports: ['websocket', 'polling'],
@@ -203,21 +186,40 @@ export function ParticipantView() {
       }
       socketRef.current.emit("join-session", joinData)
 
-      setParticipantId(participant.id)
+      // 🧩 Step 4 (Optional): Sync to Blink SDK cloud DB — won't break join if it fails
+      const participantLocalId = `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      try {
+        await blink.db.participants.create({
+          id: participantLocalId,
+          sessionId: realSessionId,
+          name: name.trim(),
+          phone: phone.trim(),
+          email: user ? user.email : email.trim(),
+          isConnected: 1,
+          hasMicPermission: 0,
+          isMuted: 0,
+          isSpeaking: 0,
+          handRaised: 0
+        })
+      } catch (sdkErr: any) {
+        // SDK sync is optional — log but don't block the user
+        console.warn('Blink SDK sync skipped (non-critical):', sdkErr?.message)
+      }
+
+      setParticipantId(participantLocalId)
       setStage('waiting')
-      toast.success('Connected successfully!')
+      toast.success('Connected successfully! Waiting for host...')
     } catch (error: any) {
-      console.error('CRITICAL: Join Session Failed', error)
+      console.error('Join Session Failed:', error)
 
       let errorMsg = 'Connection failed'
       if (error.message === 'Timeout') {
-        errorMsg = 'Connection timed out. The server might be waking up or your internet is slow.'
+        errorMsg = 'Connection timed out. The server may be waking up — try again in 30 seconds.'
       } else if (error.response) {
         const serverError = error.response.data?.error || error.response.statusText;
-        const details = error.response.data?.received ? ` (Body: ${JSON.stringify(error.response.data.received)})` : '';
-        errorMsg = `Server Error: ${serverError}${details}`
+        errorMsg = `Server Error: ${serverError}`
       } else if (error.request) {
-        errorMsg = 'Network Error: Backend unreachable. Check if you are on the same Wi-Fi or if Render is up.'
+        errorMsg = 'Network Error: Cannot reach backend. Check your internet connection.'
       } else {
         errorMsg = `Error: ${error.message}`
       }
