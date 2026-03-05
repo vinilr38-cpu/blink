@@ -151,15 +151,19 @@ export function ParticipantView() {
 
     setIsConnecting(true)
     try {
-      // 🌐 Fetch session from the actual backend (db.json) for cross-device support
-      const res = await api.get(`/sessions/lookup/${sessionCode?.trim()}`)
+      const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms));
+
+      // 🌐 Step 1: Lookup session
+      toast.info('Step 1: Looking up session...')
+      const lookupPromise = api.get(`/sessions/lookup/${sessionCode?.trim()}`)
+      const res: any = await Promise.race([lookupPromise, timeout(15000)])
+
       const realSessionId = res.data.sessionId
-      toast.info('Step 1: Session found, syncing SDK...')
-
       setSessionId(realSessionId)
+      toast.info('Step 2: Syncing with SDK...')
 
-      // Create local participant record in SDK for WebRTC management
-      const participant = await blink.db.participants.create({
+      // Step 2: Create SDK participant record
+      const sdkPromise = blink.db.participants.create({
         id: `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         sessionId: realSessionId,
         name: name.trim(),
@@ -171,7 +175,9 @@ export function ParticipantView() {
         isSpeaking: 0,
         handRaised: 0
       })
-      toast.info('Step 2: SDK synced, joining via REST...')
+      const participant: any = await Promise.race([sdkPromise, timeout(15000)])
+
+      toast.info('Step 3: Joining via REST...')
 
       const joinData = {
         sessionId: realSessionId,
@@ -181,41 +187,38 @@ export function ParticipantView() {
         userId: user ? user.id : null
       }
 
-      // 🔌 Socket.io Implementation
+      // Step 3: Registration via REST
+      const restJoinPromise = api.post('/sessions/join', joinData)
+      await Promise.race([restJoinPromise, timeout(15000)])
+
+      // 🔌 Step 4: Socket.io
+      toast.info('Step 4: Finalizing connection...')
       if (!socketRef.current) {
-        socketRef.current = io(SOCKET_URL)
+        socketRef.current = io(SOCKET_URL, {
+          transports: ['websocket', 'polling'],
+          timeout: 10000
+        })
       }
-
       socketRef.current.emit("join-session", joinData)
-
-      // Sync with our backend via REST for maximum reliability across devices
-      await api.post('/sessions/join', joinData)
-      toast.info('Step 3: Registration complete!')
-
-      // The socket logic: since we use Blink SDK, we'll emit this to the host via the realtime channel
-      // We'll do this once the channel is initialized in the useEffect
 
       setParticipantId(participant.id)
       setStage('waiting')
-      toast.success('Connected to live session')
+      toast.success('Connected successfully!')
     } catch (error: any) {
-      console.error('CRITICAL: Join Session Failed', {
-        error,
-        code: sessionCode,
-        participant: name,
-        stack: error.stack
-      })
+      console.error('CRITICAL: Join Session Failed', error)
 
       let errorMsg = 'Connection failed'
-      if (error.response) {
+      if (error.message === 'Timeout') {
+        errorMsg = 'Connection timed out. The server might be waking up or your internet is slow.'
+      } else if (error.response) {
         errorMsg = `Server Error: ${error.response.data?.error || error.response.statusText}`
       } else if (error.request) {
-        errorMsg = 'Network Error: Backend unreachable. Check if you are on the same Wi-Fi.'
+        errorMsg = 'Network Error: Backend unreachable. Check if you are on the same Wi-Fi or if Render is up.'
       } else {
         errorMsg = `Error: ${error.message}`
       }
 
-      toast.error(errorMsg, { duration: 5000 })
+      toast.error(errorMsg, { duration: 8000 })
     } finally {
       setIsConnecting(false)
     }
