@@ -213,7 +213,9 @@ export function ParticipantView() {
       if (error.message === 'Timeout') {
         errorMsg = 'Connection timed out. The server might be waking up or your internet is slow.'
       } else if (error.response) {
-        errorMsg = `Server Error: ${error.response.data?.error || error.response.statusText}`
+        const serverError = error.response.data?.error || error.response.statusText;
+        const details = error.response.data?.received ? ` (Body: ${JSON.stringify(error.response.data.received)})` : '';
+        errorMsg = `Server Error: ${serverError}${details}`
       } else if (error.request) {
         errorMsg = 'Network Error: Backend unreachable. Check if you are on the same Wi-Fi or if Render is up.'
       } else {
