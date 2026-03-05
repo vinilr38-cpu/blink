@@ -306,7 +306,9 @@ export function ParticipantView() {
         data: offer
       }, { userId: participantId })
 
-      await blink.db.participants.update(participantId, { isSpeaking: 1 })
+      await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+        isSpeaking: 1
+      }).catch(console.error)
       await channelRef.current?.publish('webrtc', {
         type: 'participant-speaking',
         from: participantId,
@@ -322,7 +324,9 @@ export function ParticipantView() {
     webrtcRef.current?.cleanup()
     setAudioStream(null)
     if (participantId) {
-      blink.db.participants.update(participantId, { isSpeaking: 0 }).catch(console.error)
+      api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+        isSpeaking: 0
+      }).catch(console.error)
       channelRef.current?.publish('webrtc', {
         type: 'participant-speaking',
         from: participantId,
@@ -339,7 +343,10 @@ export function ParticipantView() {
 
     if (newMutedState) {
       webrtcRef.current?.muteLocalAudio()
-      await blink.db.participants.update(participantId, { isMuted: 1, isSpeaking: 0 })
+      await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+        isMuted: 1,
+        isSpeaking: 0
+      }).catch(console.error)
       await channelRef.current.publish('webrtc', {
         type: 'participant-speaking',
         from: participantId,
@@ -348,7 +355,10 @@ export function ParticipantView() {
       }, { userId: participantId })
     } else {
       webrtcRef.current?.unmuteLocalAudio()
-      await blink.db.participants.update(participantId, { isMuted: 0, isSpeaking: 1 })
+      await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+        isMuted: 0,
+        isSpeaking: 1
+      }).catch(console.error)
       await channelRef.current.publish('webrtc', {
         type: 'participant-speaking',
         from: participantId,
@@ -362,7 +372,9 @@ export function ParticipantView() {
     stopAudioStream()
     channelRef.current?.unsubscribe()
     if (participantId) {
-      blink.db.participants.update(participantId, { isConnected: 0 }).catch(console.error)
+      api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+        isConnected: 0
+      }).catch(console.error)
     }
   }
 
