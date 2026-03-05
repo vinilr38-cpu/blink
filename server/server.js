@@ -50,6 +50,9 @@ app.use(express.json());
 
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+    if (["POST", "PUT"].includes(req.method)) {
+        console.log("Body:", JSON.stringify(req.body, null, 2));
+    }
     next();
 });
 
@@ -252,7 +255,8 @@ app.get("/sessions/lookup/:code", async (req, res) => {
 app.post("/sessions/join", async (req, res) => {
     try {
         const { sessionId, name, phone, email, userId } = req.body;
-        if (!sessionId || !name) return res.status(400).json({ error: "Missing fields" });
+        if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
+        if (!name) return res.status(400).json({ error: "Missing name" });
 
         const db = readDB();
         const session = db.sessions.find(s => s.sessionId === sessionId);
