@@ -26,6 +26,8 @@ export function HomePage() {
     setIsCreating(true)
 
     try {
+      // Step 1: Create SDK Session
+      toast.info('Step 1: Creating SDK session...')
       const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase()
       const session = await blink.db.sessions.create({
         id: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -34,7 +36,12 @@ export function HomePage() {
         isActive: 1
       })
 
-      // Sync with our backend
+      if (!session || !session.id) {
+        throw new Error('SDK failed to return a valid Session ID')
+      }
+
+      // Step 2: Sync with our backend
+      toast.info('Step 2: Syncing with live backend...')
       await api.post('/sessions/create', {
         sessionId: session.id,
         sessionCode: session.sessionCode,

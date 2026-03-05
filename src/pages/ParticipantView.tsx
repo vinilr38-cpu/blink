@@ -159,6 +159,8 @@ export function ParticipantView() {
       const res: any = await Promise.race([lookupPromise, timeout(15000)])
 
       const realSessionId = res.data.sessionId
+      if (!realSessionId) throw new Error('Session ID not found in lookup response');
+
       setSessionId(realSessionId)
       toast.info('Step 2: Syncing with SDK...')
 
