@@ -6,6 +6,7 @@ export class WebRTCManager {
   private iceQueues: Map<string, RTCIceCandidateInit[]> = new Map()
   private channelName: string
   private audioContainer: HTMLDivElement | null = null
+  private audioContext: AudioContext | null = null
 
   constructor(channelName: string) {
     this.channelName = channelName
@@ -25,16 +26,24 @@ export class WebRTCManager {
 
   async initLocalStream() {
     try {
+      // Force exact echo/noise cancellation — not just 'ideal' — for maximum suppression
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: { ideal: true },
-          noiseSuppression: { ideal: true },
-          autoGainControl: { ideal: true },
-          // @ts-ignore - Chrome specific constraints
+          echoCancellation: true,      // Force ON (not ideal)
+          noiseSuppression: true,       // Force ON
+          autoGainControl: true,        // Force ON
+          sampleRate: 48000,
+          channelCount: 1,             // Mono is better for voice
+          // @ts-ignore - Chrome-specific, ignored on other browsers
           googEchoCancellation: true,
+          googEchoCancellation2: true,
           googAutoGainControl: true,
+          googAutoGainControl2: true,
           googNoiseSuppression: true,
-          googHighpassFilter: true
+          googNoiseSuppression2: true,
+          googHighpassFilter: true,
+          googTypingNoiseDetection: true,
+          googAudioMirroring: false
         },
         video: false
       })
@@ -94,32 +103,69 @@ export class WebRTCManager {
     return pc
   }
 
+  private getAudioContext(): AudioContext {
+    if (!this.audioContext || this.audioContext.state === 'closed') {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+    }
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume()
+    }
+    return this.audioContext
+  }
+
   playRemoteAudio(peerId: string, stream: MediaStream) {
     let audio = this.audioElements.get(peerId)
 
     if (!audio) {
       audio = new Audio()
       audio.autoplay = true
-      // Enable background play
       audio.setAttribute('playsinline', 'true')
       audio.setAttribute('webkit-playsinline', 'true')
-
       if (this.audioContainer) {
         this.audioContainer.appendChild(audio)
       }
-
       this.audioElements.set(peerId, audio)
     }
 
     audio.srcObject = stream
+
+    // Web Audio API pipeline: reduces loudness → prevents mic re-pickup (echo)
+    try {
+      const ctx = this.getAudioContext()
+      const source = ctx.createMediaStreamSource(stream)
+
+      // DynamicsCompressor prevents volume spikes from getting loud enough to echo
+      const compressor = ctx.createDynamicsCompressor()
+      compressor.threshold.setValueAtTime(-20, ctx.currentTime)
+      compressor.knee.setValueAtTime(30, ctx.currentTime)
+      compressor.ratio.setValueAtTime(8, ctx.currentTime)
+      compressor.attack.setValueAtTime(0.003, ctx.currentTime)
+      compressor.release.setValueAtTime(0.25, ctx.currentTime)
+
+      // Keep output at 75% volume — audible but not loud enough to loop back into mic
+      const gainNode = ctx.createGain()
+      gainNode.gain.setValueAtTime(0.75, ctx.currentTime)
+
+      source.connect(compressor)
+      compressor.connect(gainNode)
+      gainNode.connect(ctx.destination)
+
+      // Silence the raw <audio> element — sound comes from Web Audio chain above
+      audio.volume = 0
+    } catch (e) {
+      console.warn('Web Audio API unavailable, using direct playback:', e)
+      audio.volume = 0.7
+    }
+
     audio.play().catch(e => {
-      console.warn('Click required to play audio:', e)
-      // Attempt to play on next user interaction if blocked
+      console.warn('Autoplay blocked, waiting for user interaction:', e)
       const resume = () => {
         audio?.play().catch(() => { })
         document.removeEventListener('click', resume)
+        document.removeEventListener('touchstart', resume)
       }
       document.addEventListener('click', resume)
+      document.addEventListener('touchstart', resume)
     })
   }
 
@@ -232,5 +278,8 @@ export class WebRTCManager {
       this.closePeerConnection(peerId)
     })
     this.stopLocalStream()
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      this.audioContext.close()
+    }
   }
 }
