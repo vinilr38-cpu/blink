@@ -93,7 +93,7 @@ export function Settings() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-4 sm:p-8 space-y-6">
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {[
                                     { id: 'light', icon: Sun, label: 'Light' },
                                     { id: 'dark', icon: Moon, label: 'Dark' },
@@ -108,7 +108,7 @@ export function Settings() {
                                             }`}
                                     >
                                         <t.icon className={`h-6 w-6 ${theme === t.id ? 'text-primary' : 'text-muted-foreground'}`} />
-                                        <span className="text-xs font-black uppercase tracking-tight">{t.label}</span>
+                                        <span className="text-[10px] sm:text-xs font-black uppercase tracking-tight">{t.label}</span>
                                     </button>
                                 ))}
                             </div>
@@ -238,10 +238,10 @@ export function Settings() {
                     </Card>
                 </motion.div>
 
-                <div className="flex items-center justify-between pt-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4">
                     <Button
                         variant="outline"
-                        className="h-12 px-8 rounded-xl border-2 border-destructive/10 text-destructive font-black hover:bg-destructive/5"
+                        className="h-12 px-6 sm:px-8 rounded-xl border-2 border-destructive/10 text-destructive font-black hover:bg-destructive/5 order-2 sm:order-1"
                         onClick={() => {
                             localStorage.clear()
                             window.location.href = '/login'
@@ -252,10 +252,10 @@ export function Settings() {
 
                     <Button
                         disabled={loading}
-                        className="h-12 px-12 rounded-xl font-black text-lg shadow-xl shadow-primary/20"
+                        className="h-12 px-8 sm:px-12 rounded-xl font-black text-lg shadow-xl shadow-primary/20 order-1 sm:order-2"
                         onClick={handleSave}
                     >
-                        {loading ? 'Saving Changes...' : (
+                        {loading ? 'Saving...' : (
                             <>
                                 <Save className="mr-2 h-5 w-5" /> Save Changes
                             </>
