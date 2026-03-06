@@ -71,12 +71,20 @@ io.on("connection", (socket) => {
 
     socket.on("join-session", (data) => {
         try {
-            const { sessionId, userId, name, phone, email, role } = data;
+            const { sessionId, userId, name, phone, email, isHost } = data;
+
+            // Always join the socket room so signaling works
+            socket.join(sessionId);
+
+            // Do NOT add host to participants list
+            if (isHost) {
+                console.log(`Host joined socket room for session ${sessionId}`);
+                return;
+            }
+
             const db = readDB();
             const session = db.sessions.find(s => s.sessionId === sessionId);
-
-            // Only add to participants if role is NOT host
-            if (session && role !== "host") {
+            if (session) {
                 // Deduplicate: check if this specific user (by ID or Email) is already in the list
                 const exists = session.participants.some(p =>
                     (userId && p.userId === userId) || (email && p.email === email)
@@ -100,8 +108,7 @@ io.on("connection", (socket) => {
                     console.log(`Socket Join: Added ${name} to ${sessionId}`);
                 }
             }
-            socket.join(data.sessionId);
-            io.to(data.sessionId).emit("participant-joined", {
+            io.to(sessionId).emit("participant-joined", {
                 name: data.name,
                 userId: data.userId
             });
@@ -315,10 +322,9 @@ app.post("/sessions/join", async (req, res) => {
             session.participants.push(newParticipant);
             writeDB(db);
             console.log(`REST Join: Added ${name} to ${sessionId}`);
-            return res.json({ message: "Joined successfully", id: newParticipant.id, sessionId: session.sessionId });
         }
 
-        res.json({ message: "Joined successfully", id: existing.id, sessionId: session.sessionId });
+        res.json({ message: "Joined successfully", sessionId: session.sessionId });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -330,7 +336,11 @@ app.get("/sessions/:sessionId/participants", async (req, res) => {
         const db = readDB();
         const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
         if (!session) return res.status(404).json({ error: "Session not found" });
-        res.json({ participants: session.participants });
+        // Filter out the host (they join by userId === sessionId or name === 'Host')
+        const participants = (session.participants || []).filter(p =>
+            p.userId !== session.sessionId && p.name !== 'Host'
+        );
+        res.json({ participants });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -33,7 +33,6 @@ export function Settings() {
         if (!user) return
         setLoading(true)
         try {
-            const roleChanged = form.role !== user.role
             const res = await api.put('/users/profile', {
                 id: user.id || user._id,
                 ...form
@@ -45,12 +44,13 @@ export function Settings() {
             localStorage.setItem('user', JSON.stringify(updatedUser))
             setUser(updatedUser)
             toast.success('Profile updated successfully!')
-
-            // Force a reload to update sidebar/navigation if role changed
-            if (roleChanged) {
+            // Force a full reload to update sidebar/navigation if role changed
+            if (form.role !== user.role) {
+                // Clear session redirect so user doesn't get bounced back to old session
+                localStorage.removeItem('activeSessionId')
                 setTimeout(() => {
-                    window.location.href = '/' // Redirect to home to refresh layout/sidebar
-                }, 1000)
+                    window.location.href = '/'
+                }, 500)
             }
         } catch (err: any) {
             toast.error(err.response?.data?.error || 'Failed to update profile')

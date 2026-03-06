@@ -101,7 +101,7 @@ export function HostDashboard() {
         // Initialize Socket.io for secondary (more reliable) signaling
         const socket = io(SOCKET_URL);
         socketRef.current = socket;
-        socket.emit('join-session', { sessionId, userId: sessionId, name: 'Host', role: 'host' });
+        socket.emit('join-session', { sessionId, userId: sessionId, name: 'Host', isHost: true });
 
         // Listen for signaling over Socket.io
         socket.on('webrtc-signaling', async (message: any) => {
