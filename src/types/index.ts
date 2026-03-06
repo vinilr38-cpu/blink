@@ -9,6 +9,7 @@ export interface Session {
 
 export interface Participant {
   id: string
+  userId?: string
   sessionId: string
   name: string
   phone: string

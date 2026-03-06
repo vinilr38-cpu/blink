@@ -122,13 +122,29 @@ export function HostDashboard() {
           }
         })
 
+        // Real-time participant list updates
+        socket.on('participant-joined', () => {
+          if (mounted) fetchParticipants()
+        })
+        socket.on('participant-left', ({ userId: leftId }: any) => {
+          if (mounted) {
+            setParticipants(prev => prev.filter(p => p.userId !== leftId))
+            setRemoteStreams(prev => {
+              const next = new Map(prev)
+              // Find participant by userId and remove their stream
+              const [peerId] = [...next.entries()].find(([id]) => id === leftId) || []
+              if (peerId) next.delete(peerId)
+              return next
+            })
+          }
+        })
+
         const handleWebRTCOffer = async (participantId: string, offer: any) => {
           if (!webrtcRef.current) return
           await webrtcRef.current.createPeerConnection(
             participantId,
             false,
             (candidate) => {
-              // Send ICE over socket
               socket.emit('webrtc-signaling', {
                 type: 'ice-candidate',
                 from: sessionId,
@@ -148,7 +164,6 @@ export function HostDashboard() {
           )
           await webrtcRef.current.handleOffer(participantId, offer)
           const answer = await webrtcRef.current.createAnswer(participantId)
-          // Send answer over socket
           socket.emit('webrtc-signaling', {
             type: 'answer',
             from: sessionId,
@@ -171,7 +186,6 @@ export function HostDashboard() {
                 toast.success(`${message.data.name} joined the session`)
                 break
               case 'hand-raise':
-                // Update via REST so it persists in db.json
                 try {
                   await api.post(`/sessions/${sessionId}/hand-raise`, {
                     participantId: message.from,

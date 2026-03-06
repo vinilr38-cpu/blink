@@ -93,6 +93,16 @@ export function ParticipantView() {
           }
         })
 
+        // 🔑 KEY FIX: Wait for host-ready signal before sending WebRTC offer
+        // This ensures the host has registered its socket listener before we send the offer
+        socket.on('host-ready', async ({ sessionId: readySessionId }: any) => {
+          if (!mounted || readySessionId !== sessionId) return
+          if (hasMicPermission && webrtcRef.current) {
+            console.log('Host is ready - initiating WebRTC offer')
+            await startAudioStream()
+          }
+        })
+
         await channel.subscribe({ userId: participantId })
 
         // 🚀 "socket.emit" equivalent for joining
@@ -329,9 +339,7 @@ export function ParticipantView() {
 
       const offer = await webrtcRef.current.createOffer(sessionId)
 
-      // Small delay to ensure host's socket listener is established before we send the offer
-      await new Promise(resolve => setTimeout(resolve, 500))
-
+      // Send offer immediately - timing is controlled by host-ready event
       socketRef.current?.emit('webrtc-signaling', {
         type: 'offer',
         from: participantId,

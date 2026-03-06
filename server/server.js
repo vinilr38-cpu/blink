@@ -73,23 +73,26 @@ io.on("connection", (socket) => {
         try {
             const { sessionId, userId, name, phone, email, isHost } = data;
 
-            // Always join the socket room so signaling works
+            // Always join the socket room first so signaling works
             socket.join(sessionId);
+            // Track for disconnect cleanup
+            socket.data.sessionId = sessionId;
+            socket.data.userId = userId;
+            socket.data.isHost = !!isHost;
 
-            // Do NOT add host to participants list
             if (isHost) {
                 console.log(`Host joined socket room for session ${sessionId}`);
+                // Tell all participants the host is ready to receive WebRTC offers
+                io.to(sessionId).emit("host-ready", { sessionId });
                 return;
             }
 
             const db = readDB();
             const session = db.sessions.find(s => s.sessionId === sessionId);
             if (session) {
-                // Deduplicate: check if this specific user (by ID or Email) is already in the list
                 const exists = session.participants.some(p =>
                     (userId && p.userId === userId) || (email && p.email === email)
                 );
-
                 if (!exists) {
                     session.participants.push({
                         id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -108,23 +111,37 @@ io.on("connection", (socket) => {
                     console.log(`Socket Join: Added ${name} to ${sessionId}`);
                 }
             }
-            io.to(sessionId).emit("participant-joined", {
-                name: data.name,
-                userId: data.userId
-            });
+            io.to(sessionId).emit("participant-joined", { name, userId });
         } catch (err) {
             console.error("Socket error:", err.message);
         }
     });
 
     socket.on("webrtc-signaling", (data) => {
-        // data looks like: { sessionId, to, from, type, data }
-        // Broadcast to everyone in the room. Each client will filter by 'to' field.
         io.to(data.sessionId).emit("webrtc-signaling", data);
     });
 
     socket.on("disconnect", () => {
-        console.log("User disconnected:", socket.id);
+        const { sessionId, userId, isHost } = socket.data || {};
+        console.log(`Disconnect: socket=${socket.id}, session=${sessionId}, user=${userId}, isHost=${isHost}`);
+
+        if (sessionId && userId && !isHost) {
+            try {
+                const db = readDB();
+                const session = db.sessions.find(s => s.sessionId === sessionId);
+                if (session) {
+                    const before = session.participants.length;
+                    session.participants = session.participants.filter(p => p.userId !== userId);
+                    if (session.participants.length !== before) {
+                        writeDB(db);
+                        console.log(`Removed disconnected participant ${userId} from ${sessionId}`);
+                        io.to(sessionId).emit("participant-left", { userId });
+                    }
+                }
+            } catch (err) {
+                console.error("Disconnect cleanup error:", err.message);
+            }
+        }
     });
 });
 
@@ -209,8 +226,12 @@ app.put("/users/profile", async (req, res) => {
         if (!id) return res.status(400).json({ error: "User ID is required" });
 
         const db = readDB();
-        const user = db.users.find(u => u._id === id);
-        if (!user) return res.status(404).json({ error: "User not found" });
+        // Search by both _id and id for compatibility with different frontend versions
+        const user = db.users.find(u => u._id === id || u.id === id);
+        if (!user) {
+            console.log(`Profile update: user not found for id=${id}. Available IDs:`, db.users.map(u => u._id).slice(0, 3));
+            return res.status(404).json({ error: "User not found" });
+        }
 
         if (name) user.name = name;
         if (phone) user.phone = phone;
