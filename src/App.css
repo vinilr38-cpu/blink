@@ -100,3 +100,11 @@
   min-width: 0;
   background: hsl(var(--background));
 }
+/* === Mobile Responsive Fixes === */
+html, body, #root { overflow-x: hidden; max-width: 100vw; }
+
+@media (max-width: 1023px) {
+  .main-content > div { padding-top: 4.5rem; }
+  table { display: block; max-width: 100%; overflow-x: auto; }
+  .main-content img, .main-content video { max-width: 100%; height: auto; }
+}

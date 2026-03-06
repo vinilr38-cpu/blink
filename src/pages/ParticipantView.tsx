@@ -220,7 +220,6 @@ export function ParticipantView() {
       const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms));
 
       // 🌐 Step 1: Lookup session code → get the real sessionId
-      toast.info('Looking up session...')
       const lookupPromise = api.get(`/sessions/lookup/${sessionCode?.trim().toUpperCase()}`)
       const res: any = await Promise.race([lookupPromise, timeout(15000)])
 
@@ -242,12 +241,10 @@ export function ParticipantView() {
       }
 
       // 🔗 Step 2: Register via REST (primary join mechanism)
-      toast.info('Registering...')
       const restJoinPromise = api.post('/sessions/join', joinData)
       await Promise.race([restJoinPromise, timeout(15000)])
 
       // 🔌 Step 3: Connect via Socket.io for real-time sync
-      toast.info('Connecting live channel...')
       if (!socketRef.current) {
         socketRef.current = io(SOCKET_URL, {
           transports: ['websocket', 'polling'],

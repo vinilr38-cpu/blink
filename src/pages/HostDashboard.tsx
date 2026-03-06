@@ -333,10 +333,21 @@ export function HostDashboard() {
         isMuted: 1
       })
 
+      const targetId = participant.userId || participant.id
+
+      // Primary: socket (reliable)
+      socketRef.current?.emit('webrtc-signaling', {
+        type: 'mute',
+        from: sessionId,
+        to: targetId,
+        sessionId,
+        data: {}
+      })
+      // Fallback: Blink channel
       await channelRef.current?.publish('webrtc', {
         type: 'mute',
         from: sessionId,
-        to: participant.id,
+        to: targetId,
         data: {}
       }, { userId: sessionId })
 
@@ -354,10 +365,19 @@ export function HostDashboard() {
         isMuted: 0
       })
 
+      const targetId = participant.userId || participant.id
+
+      socketRef.current?.emit('webrtc-signaling', {
+        type: 'unmute',
+        from: sessionId,
+        to: targetId,
+        sessionId,
+        data: {}
+      })
       await channelRef.current?.publish('webrtc', {
         type: 'unmute',
         from: sessionId,
-        to: participant.id,
+        to: targetId,
         data: {}
       }, { userId: sessionId })
 
