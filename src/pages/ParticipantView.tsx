@@ -59,6 +59,40 @@ export function ParticipantView() {
         channel = blink.realtime.channel(`session-${sessionId}`)
         channelRef.current = channel
 
+        // Use existing socket or initialize if missing (e.g. on direct page reload)
+        if (!socketRef.current) {
+          socketRef.current = io(SOCKET_URL, {
+            transports: ['websocket', 'polling']
+          });
+        }
+
+        const socket = socketRef.current;
+        socket.emit('join-session', {
+          sessionId,
+          userId: participantId,
+          name,
+          phone,
+          email: user?.email || email
+        });
+
+        // Listen for signaling over Socket.io
+        socket.on('webrtc-signaling', async (message: any) => {
+          if (!mounted || message.to !== participantId) return
+
+          try {
+            switch (message.type) {
+              case 'answer':
+                if (webrtcRef.current) await webrtcRef.current.handleAnswer(sessionId, message.data)
+                break
+              case 'ice-candidate':
+                if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(sessionId, message.data)
+                break
+            }
+          } catch (err) {
+            console.error('Socket signaling error:', err)
+          }
+        })
+
         await channel.subscribe({ userId: participantId })
 
         // 🚀 "socket.emit" equivalent for joining
@@ -113,14 +147,6 @@ export function ParticipantView() {
                 setStage('join')
                 break
 
-              case 'answer':
-                if (webrtcRef.current) await webrtcRef.current.handleAnswer(sessionId, message.data)
-                break
-
-              case 'ice-candidate':
-                if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(sessionId, message.data)
-                break
-
               case 'session-ended':
                 toast.error('Session ended by host')
                 cleanup()
@@ -140,6 +166,8 @@ export function ParticipantView() {
     return () => {
       mounted = false
       channel?.unsubscribe()
+      socketRef.current?.disconnect()
+      webrtcRef.current?.cleanup()
     }
   }, [stage, sessionId, participantId])
 
@@ -289,22 +317,24 @@ export function ParticipantView() {
         sessionId,
         true,
         (candidate) => {
-          channelRef.current?.publish('webrtc', {
+          socketRef.current?.emit('webrtc-signaling', {
             type: 'ice-candidate',
             from: participantId,
             to: sessionId,
+            sessionId,
             data: candidate
-          }, { userId: participantId })
+          })
         }
       )
 
       const offer = await webrtcRef.current.createOffer(sessionId)
-      await channelRef.current?.publish('webrtc', {
+      socketRef.current?.emit('webrtc-signaling', {
         type: 'offer',
         from: participantId,
         to: sessionId,
+        sessionId,
         data: offer
-      }, { userId: participantId })
+      })
 
       await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
         isSpeaking: 1

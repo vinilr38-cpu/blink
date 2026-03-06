@@ -12,9 +12,16 @@ import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import AudioWaveform from '@/components/AudioWaveform'
 import api from '@/lib/api'
+import { io } from 'socket.io-client'
+import type { Socket } from 'socket.io-client'
 
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
+
+// Auto-detect local network testing
+const isLocalNetwork = window.location.hostname === 'localhost' || /^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(window.location.hostname);
+const defaultSocketUrl = isLocalNetwork ? `http://${window.location.hostname}:5001` : 'https://blink-3.onrender.com';
+const SOCKET_URL = import.meta.env.VITE_API_URL || defaultSocketUrl;
 
 const container: any = {
   hidden: { opacity: 0 },
@@ -42,6 +49,7 @@ export function HostDashboard() {
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
+  const socketRef = useRef<Socket | null>(null)
 
   // Construct join URL using current origin
   const joinUrl = `${window.location.origin}/join/${sessionCode}`
@@ -90,52 +98,77 @@ export function HostDashboard() {
 
         await channel.subscribe({ userId: sessionId })
 
+        // Initialize Socket.io for secondary (more reliable) signaling
+        const socket = io(SOCKET_URL);
+        socketRef.current = socket;
+        socket.emit('join-session', { sessionId, userId: sessionId, name: 'Host' });
+
+        // Listen for signaling over Socket.io
+        socket.on('webrtc-signaling', async (message: any) => {
+          if (!mounted || message.to !== sessionId) return
+          const participantId = message.from
+
+          try {
+            switch (message.type) {
+              case 'offer':
+                await handleWebRTCOffer(participantId, message.data)
+                break
+              case 'ice-candidate':
+                if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(participantId, message.data)
+                break
+            }
+          } catch (err) {
+            console.error('Socket signaling error:', err)
+          }
+        })
+
+        const handleWebRTCOffer = async (participantId: string, offer: any) => {
+          if (!webrtcRef.current) return
+          await webrtcRef.current.createPeerConnection(
+            participantId,
+            false,
+            (candidate) => {
+              // Send ICE over socket
+              socket.emit('webrtc-signaling', {
+                type: 'ice-candidate',
+                from: sessionId,
+                to: participantId,
+                sessionId,
+                data: candidate
+              })
+            },
+            (stream) => {
+              updateSpeakingStatus(participantId, true)
+              setRemoteStreams(prev => {
+                const next = new Map(prev)
+                next.set(participantId, stream)
+                return next
+              })
+            }
+          )
+          await webrtcRef.current.handleOffer(participantId, offer)
+          const answer = await webrtcRef.current.createAnswer(participantId)
+          // Send answer over socket
+          socket.emit('webrtc-signaling', {
+            type: 'answer',
+            from: sessionId,
+            to: participantId,
+            sessionId,
+            data: answer
+          })
+        }
+
         channel.onMessage(async (msg: any) => {
           if (!mounted || msg.type !== 'webrtc') return
-          const message = msg.data as any // Use any to bypass strict WebRTCMessage type check for join-session
+          const message = msg.data as any
           if (message.to !== sessionId) return
           const participantId = message.from
 
           try {
             switch (message.type) {
               case 'join-session':
-                // Refresh list from backend when someone joins
                 fetchParticipants()
                 toast.success(`${message.data.name} joined the session`)
-                break
-
-              case 'offer':
-                await webrtcRef.current!.createPeerConnection(
-                  participantId,
-                  false,
-                  (candidate) => {
-                    channel.publish('webrtc', {
-                      type: 'ice-candidate',
-                      from: sessionId,
-                      to: participantId,
-                      data: candidate
-                    }, { userId: sessionId })
-                  },
-                  (stream) => {
-                    updateSpeakingStatus(participantId, true)
-                    setRemoteStreams(prev => {
-                      const next = new Map(prev)
-                      next.set(participantId, stream)
-                      return next
-                    })
-                  }
-                )
-                await webrtcRef.current!.handleOffer(participantId, message.data)
-                const answer = await webrtcRef.current!.createAnswer(participantId)
-                await channel.publish('webrtc', {
-                  type: 'answer',
-                  from: sessionId,
-                  to: participantId,
-                  data: answer
-                }, { userId: sessionId })
-                break
-              case 'ice-candidate':
-                if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(participantId, message.data)
                 break
               case 'hand-raise':
                 // Update via REST so it persists in db.json
@@ -162,13 +195,8 @@ export function HostDashboard() {
                 break
             }
           } catch (error) {
-            console.error('Error handling WebRTC message:', error)
+            console.error('Error handling channel message:', error)
           }
-        })
-
-        channel.onPresence((users: any[]) => {
-          if (!mounted) return
-          refreshParticipants()
         })
       } catch (error) {
         console.error('Failed to initialize host dashboard:', error)
@@ -190,6 +218,7 @@ export function HostDashboard() {
       mounted = false
       clearInterval(interval)
       channel?.unsubscribe()
+      socketRef.current?.disconnect()
       webrtcRef.current?.cleanup()
     }
   }, [sessionId])

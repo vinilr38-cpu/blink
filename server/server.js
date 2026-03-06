@@ -108,6 +108,12 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("webrtc-signaling", (data) => {
+        // data looks like: { sessionId, to, from, type, data }
+        // Broadcast to everyone in the room. Each client will filter by 'to' field.
+        io.to(data.sessionId).emit("webrtc-signaling", data);
+    });
+
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
     });
