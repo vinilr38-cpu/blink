@@ -35,6 +35,7 @@ export function Settings() {
         try {
             const res = await api.put('/users/profile', {
                 id: user.id || user._id,
+                email: user.email,  // used as fallback identifier on the server
                 ...form
             })
             const updatedUser = {

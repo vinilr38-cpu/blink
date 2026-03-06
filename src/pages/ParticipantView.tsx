@@ -75,17 +75,45 @@ export function ParticipantView() {
           email: user?.email || email
         });
 
-        // Listen for signaling over Socket.io
+        // Listen for signaling over Socket.io (handles BOTH WebRTC signaling AND control messages)
         socket.on('webrtc-signaling', async (message: any) => {
           if (!mounted || message.to !== participantId) return
 
           try {
             switch (message.type) {
+              // WebRTC signaling
               case 'answer':
                 if (webrtcRef.current) await webrtcRef.current.handleAnswer(sessionId, message.data)
                 break
               case 'ice-candidate':
                 if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(sessionId, message.data)
+                break
+              // Control messages — host sends these to grant/revoke mic access
+              case 'mic-permission':
+                if (message.data.granted) {
+                  setHasMicPermission(true)
+                  toast.success('🎤 Microphone permission granted!')
+                  await startAudioStream()
+                } else {
+                  setHasMicPermission(false)
+                  toast.error('Microphone permission revoked')
+                  stopAudioStream()
+                }
+                break
+              case 'mute':
+                setIsMuted(true)
+                webrtcRef.current?.muteLocalAudio()
+                toast.info('You have been muted')
+                break
+              case 'unmute':
+                setIsMuted(false)
+                webrtcRef.current?.unmuteLocalAudio()
+                toast.info('You have been unmuted')
+                break
+              case 'remove':
+                toast.error('You have been removed from the session')
+                cleanup()
+                setStage('join')
                 break
             }
           } catch (err) {
@@ -201,12 +229,16 @@ export function ParticipantView() {
 
       setSessionId(realSessionId)
 
+      // ✅ Generate ONE consistent ID used everywhere — REST, socket, Blink SDK, and state.
+      // This is critical so mic-permission messages sent by the host actually reach this participant.
+      const consistentId = user?.id || `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
       const joinData = {
         sessionId: realSessionId,
         name: name.trim(),
         phone: phone.trim(),
         email: user ? user.email : email.trim(),
-        userId: user ? user.id : null
+        userId: consistentId  // ← same ID for all channels
       }
 
       // 🔗 Step 2: Register via REST (primary join mechanism)
@@ -222,13 +254,12 @@ export function ParticipantView() {
           timeout: 10000
         })
       }
-      socketRef.current.emit("join-session", joinData)
+      socketRef.current.emit("join-session", joinData)  // uses same consistentId
 
-      // 🧩 Step 4 (Optional): Sync to Blink SDK cloud DB — won't break join if it fails
-      const participantLocalId = `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      // 🧩 Step 4 (Optional): Sync to Blink SDK
       try {
         await blink.db.participants.create({
-          id: participantLocalId,
+          id: consistentId,  // ← same ID
           sessionId: realSessionId,
           name: name.trim(),
           phone: phone.trim(),
@@ -240,11 +271,10 @@ export function ParticipantView() {
           handRaised: 0
         })
       } catch (sdkErr: any) {
-        // SDK sync is optional — log but don't block the user
         console.warn('Blink SDK sync skipped (non-critical):', sdkErr?.message)
       }
 
-      setParticipantId(participantLocalId)
+      setParticipantId(consistentId)  // ← same ID stored in state
       setStage('waiting')
       toast.success('Connected successfully! Waiting for host...')
     } catch (error: any) {

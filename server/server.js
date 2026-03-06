@@ -222,15 +222,21 @@ app.post("/login", async (req, res) => {
 // ─── UPDATE PROFILE ───────────────────────────────────────────────────────────
 app.put("/users/profile", async (req, res) => {
     try {
-        const { id, name, phone, role } = req.body;
+        const { id, name, phone, role, email: bodyEmail } = req.body;
         if (!id) return res.status(400).json({ error: "User ID is required" });
 
         const db = readDB();
-        // Search by both _id and id for compatibility with different frontend versions
-        const user = db.users.find(u => u._id === id || u.id === id);
+        // Try multiple lookup strategies to handle different ID formats
+        let user = db.users.find(u => u._id === id || u.id === id);
+
+        // Fallback: if user not found by ID, try by email (handles old deployments)
+        if (!user && bodyEmail) {
+            user = db.users.find(u => u.email === bodyEmail.toLowerCase());
+        }
+
         if (!user) {
-            console.log(`Profile update: user not found for id=${id}. Available IDs:`, db.users.map(u => u._id).slice(0, 3));
-            return res.status(404).json({ error: "User not found" });
+            console.log(`Profile update failed: id=${id}, email=${bodyEmail}. DB has ${db.users.length} users.`);
+            return res.status(404).json({ error: "User not found. Please log out and log in again." });
         }
 
         if (name) user.name = name;

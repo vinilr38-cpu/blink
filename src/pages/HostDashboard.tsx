@@ -265,10 +265,23 @@ export function HostDashboard() {
         handRaised: 0
       })
 
+      // Use the consistent userId (matches what participant stores in state)
+      const targetId = participant.userId || participant.id
+
+      // Primary: send via Socket.io (fast, reliable)
+      socketRef.current?.emit('webrtc-signaling', {
+        type: 'mic-permission',
+        from: sessionId,
+        to: targetId,
+        sessionId,
+        data: { granted: true }
+      })
+
+      // Fallback: also send via Blink channel
       await channelRef.current?.publish('webrtc', {
         type: 'mic-permission',
         from: sessionId,
-        to: participant.id,
+        to: targetId,
         data: { granted: true }
       }, { userId: sessionId })
 
@@ -288,14 +301,24 @@ export function HostDashboard() {
         isSpeaking: 0
       })
 
+      const targetId = participant.userId || participant.id
+
+      socketRef.current?.emit('webrtc-signaling', {
+        type: 'mic-permission',
+        from: sessionId,
+        to: targetId,
+        sessionId,
+        data: { granted: false }
+      })
+
       await channelRef.current?.publish('webrtc', {
         type: 'mic-permission',
         from: sessionId,
-        to: participant.id,
+        to: targetId,
         data: { granted: false }
       }, { userId: sessionId })
 
-      webrtcRef.current?.closePeerConnection(participant.id)
+      webrtcRef.current?.closePeerConnection(targetId)
       refreshParticipants()
       toast.success(`Mic permission revoked from ${participant.name}`)
     } catch (error) {
