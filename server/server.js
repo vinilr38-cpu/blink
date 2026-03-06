@@ -71,10 +71,12 @@ io.on("connection", (socket) => {
 
     socket.on("join-session", (data) => {
         try {
-            const { sessionId, userId, name, phone, email } = data;
+            const { sessionId, userId, name, phone, email, role } = data;
             const db = readDB();
             const session = db.sessions.find(s => s.sessionId === sessionId);
-            if (session) {
+
+            // Only add to participants if role is NOT host
+            if (session && role !== "host") {
                 // Deduplicate: check if this specific user (by ID or Email) is already in the list
                 const exists = session.participants.some(p =>
                     (userId && p.userId === userId) || (email && p.email === email)
@@ -313,9 +315,10 @@ app.post("/sessions/join", async (req, res) => {
             session.participants.push(newParticipant);
             writeDB(db);
             console.log(`REST Join: Added ${name} to ${sessionId}`);
+            return res.json({ message: "Joined successfully", id: newParticipant.id, sessionId: session.sessionId });
         }
 
-        res.json({ message: "Joined successfully", sessionId: session.sessionId });
+        res.json({ message: "Joined successfully", id: existing.id, sessionId: session.sessionId });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

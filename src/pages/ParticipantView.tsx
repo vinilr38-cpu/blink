@@ -202,7 +202,8 @@ export function ParticipantView() {
       // 🔗 Step 2: Register via REST (primary join mechanism)
       toast.info('Registering...')
       const restJoinPromise = api.post('/sessions/join', joinData)
-      await Promise.race([restJoinPromise, timeout(15000)])
+      const joinRes: any = await Promise.race([restJoinPromise, timeout(15000)])
+      const participantLocalId = joinRes.data.id || `p_fallback_${Date.now()}`
 
       // 🔌 Step 3: Connect via Socket.io for real-time sync
       toast.info('Connecting live channel...')
@@ -212,10 +213,9 @@ export function ParticipantView() {
           timeout: 10000
         })
       }
-      socketRef.current.emit("join-session", joinData)
+      socketRef.current.emit("join-session", { ...joinData, userId: participantLocalId })
 
       // 🧩 Step 4 (Optional): Sync to Blink SDK cloud DB — won't break join if it fails
-      const participantLocalId = `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       try {
         await blink.db.participants.create({
           id: participantLocalId,
