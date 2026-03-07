@@ -127,8 +127,26 @@ export function ParticipantView() {
           }
         })
 
-        // 🔑 KEY FIX: Wait for host-ready signal before sending WebRTC offer
-        // This ensures the host has registered its socket listener before we send the offer
+        // Listen for hand-state updates from the server/host
+        socket.on('hand-raise', ({ participantId: pid }: any) => {
+          if (pid === participantId) setHandRaised(true)
+        })
+        socket.on('hand-lower', ({ participantId: pid }: any) => {
+          if (pid === participantId) setHandRaised(false)
+        })
+        socket.on('participant-updated', ({ participantId: pid, updates }: any) => {
+          if (pid === participantId && updates.handRaised !== undefined) {
+            setHandRaised(Number(updates.handRaised) > 0)
+          }
+          if (pid === participantId && updates.hasMicPermission !== undefined) {
+            setHasMicPermission(Number(updates.hasMicPermission) > 0)
+            if (Number(updates.hasMicPermission) > 0) {
+              toast.success('🎤 Microphone permission granted!')
+              startAudioStream()
+            }
+          }
+        })
+
         socket.on('host-ready', async ({ sessionId: readySessionId }: any) => {
           if (!mounted || readySessionId !== sessionId) return
           if (hasMicPermission && webrtcRef.current) {
@@ -634,7 +652,12 @@ export function ParticipantView() {
                     ) : handRaised ? (
                       <motion.div key="waiting" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="space-y-6">
                         <div className="h-24 w-24 bg-primary text-white rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-primary/40 ring-8 ring-primary/10">
-                          <Hand size={40} className="animate-bounce" />
+                          <motion.div
+                            animate={{ y: [0, -15, 0] }}
+                            transition={{ repeat: Infinity, duration: 1, ease: "easeInOut" }}
+                          >
+                            <Hand size={40} />
+                          </motion.div>
                         </div>
                         <div>
                           <Badge variant="secondary" className="px-4 py-1 text-sm mb-2">Request Sent</Badge>

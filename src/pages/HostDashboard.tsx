@@ -343,6 +343,20 @@ export function HostDashboard() {
     }
   }
 
+  const lowerParticipantHand = async (participant: Participant) => {
+    try {
+      await api.post(`/sessions/${sessionId}/hand-lower`, {
+        participantId: participant.id,
+        name: participant.name
+      })
+      refreshParticipants()
+      toast.info(`Lowered hand for ${participant.name}`)
+    } catch (error) {
+      console.error('Failed to lower hand:', error)
+      toast.error('Failed to lower hand')
+    }
+  }
+
   const muteParticipant = async (participant: Participant) => {
     try {
       await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
@@ -669,9 +683,18 @@ export function HostDashboard() {
                             <motion.div
                               initial={{ y: -10, opacity: 0 }}
                               animate={{ y: 0, opacity: 1 }}
-                              className="h-10 w-10 flex items-center justify-center rounded-2xl bg-amber-500 text-white shadow-lg shadow-amber-500/20"
+                              className="flex gap-2"
                             >
-                              <Hand className="h-5 w-5 animate-bounce" />
+                              <div className="h-10 w-10 flex items-center justify-center rounded-2xl bg-amber-500 text-white shadow-lg shadow-amber-500/20">
+                                <Hand className="h-5 w-5 animate-bounce" />
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); lowerParticipantHand(participant); }}
+                                className="h-10 w-10 flex items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground hover:bg-muted transition-all"
+                                title="Lower Hand"
+                              >
+                                <UserX className="h-4 w-4" />
+                              </button>
                             </motion.div>
                           )}
                         </AnimatePresence>
