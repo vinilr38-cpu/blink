@@ -154,6 +154,24 @@ export function HostDashboard() {
             })
           }
         })
+        socket.on('hand-raise', ({ participantId }: any) => {
+          if (mounted) {
+            setParticipants(prev => prev.map(p =>
+              (p.id === participantId || p.userId === participantId)
+                ? { ...p, handRaised: 1 }
+                : p
+            ))
+          }
+        })
+        socket.on('hand-lower', ({ participantId }: any) => {
+          if (mounted) {
+            setParticipants(prev => prev.map(p =>
+              (p.id === participantId || p.userId === participantId)
+                ? { ...p, handRaised: 0 }
+                : p
+            ))
+          }
+        })
 
         const handleWebRTCOffer = async (participantId: string, offer: any) => {
           if (!webrtcRef.current) return
@@ -257,7 +275,10 @@ export function HostDashboard() {
     if (!sessionId) return
     try {
       const res = await api.get(`/sessions/${sessionId}/participants`)
-      setParticipants(res.data.participants || [])
+      const storedUser = localStorage.getItem('user')
+      const hostId = storedUser ? JSON.parse(storedUser).id : null
+      const filtered = res.data.participants.filter((p: any) => p.userId !== hostId && !p.isHost)
+      setParticipants(filtered)
     } catch (error) {
       console.error('Failed to refresh participants:', error)
     }
