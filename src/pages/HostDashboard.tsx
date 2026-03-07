@@ -689,7 +689,7 @@ export function HostDashboard() {
                     variants={item}
                     whileHover={{ y: -5 }}
                     exit={{ scale: 0.9, opacity: 0 }}
-                    className={`user-card relative p-8 glass-morphism overflow-hidden rounded-[2rem] shadow-xl group transition-all duration-500 border-2 ${isSpeaking ? 'border-success/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]' : showHandHighlight ? 'border-amber-500/80 shadow-[0_0_40px_rgba(245,158,11,0.5)] animate-pulse' : 'border-transparent'}`}
+                    className={`user-card relative p-8 glass-morphism overflow-hidden rounded-[2rem] shadow-xl group transition-all duration-500 ${isSpeaking ? 'border-2 border-success shadow-[0_0_30px_rgba(16,185,129,0.2)]' : 'border-none'} ${showHandHighlight ? 'hand-raise-glow' : ''}`}
                     onClick={() => setSelectedParticipant(participant)}
                   >
                     <div className={`absolute inset-0 bg-gradient-to-br ${isSpeaking ? 'from-success/10 to-transparent' : 'from-primary/5 to-transparent'} opacity-0 group-hover:opacity-100 transition-opacity`} />
