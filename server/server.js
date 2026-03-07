@@ -391,7 +391,7 @@ app.post("/sessions/:sessionId/hand-raise", async (req, res) => {
         const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
         if (!session) return res.status(404).json({ error: "Session not found" });
 
-        const participant = session.participants.find(p => p.id === participantId || p.name === name);
+        const participant = session.participants.find(p => p.id === participantId || p.userId === participantId || (name && p.name === name));
         if (participant) {
             participant.handRaised = 1;
             participant.handRaisedAt = new Date().toISOString();
@@ -414,7 +414,7 @@ app.post("/sessions/:sessionId/hand-lower", async (req, res) => {
         const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
         if (!session) return res.status(404).json({ error: "Session not found" });
 
-        const participant = session.participants.find(p => p.id === participantId || p.name === name);
+        const participant = session.participants.find(p => p.id === participantId || p.userId === participantId || (name && p.name === name));
         if (participant) {
             participant.handRaised = 0;
             participant.handRaisedAt = null;
