@@ -89,10 +89,11 @@ io.on("connection", (socket) => {
             const db = readDB();
             const session = db.sessions.find(s => s.sessionId === sessionId);
             if (session) {
-                const exists = session.participants.some(p =>
+                const existingIdx = session.participants.findIndex(p =>
                     (userId && p.userId === userId) || (email && p.email === email)
                 );
-                if (!exists) {
+                if (existingIdx === -1) {
+                    // New participant — add them
                     session.participants.push({
                         id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                         userId: userId || null,
@@ -108,6 +109,16 @@ io.on("connection", (socket) => {
                     });
                     writeDB(db);
                     console.log(`Socket Join: Added ${name} to ${sessionId}`);
+                } else {
+                    // Returning participant — reset stale state (hand, mute, speaking)
+                    const p = session.participants[existingIdx];
+                    p.handRaised = 0;
+                    p.handRaisedAt = null;
+                    p.isMuted = 0;
+                    p.isSpeaking = 0;
+                    p.isConnected = 1;
+                    writeDB(db);
+                    console.log(`Socket Rejoin: Reset state for ${name} in ${sessionId}`);
                 }
             }
             io.to(sessionId).emit("participant-joined", { name, userId });
@@ -257,12 +268,16 @@ app.post("/sessions/create", async (req, res) => {
                 sessionId,
                 sessionCode: sessionCode || "",
                 hostId: hostId ? String(hostId) : "anonymous",
-                participants: [],
+                participants: [],  // always start fresh
                 createdAt: new Date().toISOString()
             };
             db.sessions.push(session);
-            writeDB(db);
+        } else {
+            // Host is recreating/refreshing the session — clear stale participants
+            session.participants = [];
+            if (sessionCode) session.sessionCode = sessionCode;
         }
+        writeDB(db);
 
         res.json({ message: "Session indexed", session });
     } catch (err) {
@@ -444,6 +459,41 @@ app.post("/sessions/:sessionId/participants/:participantId/remove", async (req, 
 
         io.to(sessionId).emit("participant-removed", { participantId });
         res.json({ message: "Participant removed" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post("/sessions/:sessionId/participants/:userId/leave", async (req, res) => {
+    try {
+        const { sessionId, userId } = req.params;
+        const db = readDB();
+        const session = db.sessions.find(s => s.sessionId === sessionId);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        const before = session.participants.length;
+        session.participants = session.participants.filter(p => p.userId !== userId);
+
+        if (session.participants.length !== before) {
+            writeDB(db);
+            console.log(`Explicit Leave: Removed ${userId} from ${sessionId}`);
+            io.to(sessionId).emit("participant-left", { userId });
+        }
+
+        res.json({ message: "Left successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get("/participants", async (req, res) => {
+    try {
+        const db = readDB();
+        // Return all participants across all sessions, flattened
+        const allParticipants = db.sessions.flatMap(s =>
+            (s.participants || []).map(p => ({ ...p, sessionId: s.sessionId }))
+        );
+        res.json({ participants: allParticipants });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

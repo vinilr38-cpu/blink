@@ -475,10 +475,8 @@ export function ParticipantView() {
   const cleanup = () => {
     stopAudioStream()
     channelRef.current?.unsubscribe()
-    if (participantId) {
-      api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
-        isConnected: 0
-      }).catch(console.error)
+    if (participantId && sessionId) {
+      api.post(`/sessions/${sessionId}/participants/${participantId}/leave`).catch(console.error)
     }
   }
 
