@@ -66,10 +66,6 @@ const JWT_SECRET = process.env.JWT_SECRET || "blink_secret_key_2024";
 app.get("/", (req, res) => res.json({ status: "Server running (file-based storage)" }));
 
 // ─── SOCKET.IO ────────────────────────────────────────────────────────────────
-// Grace period map: userId → timeout handle
-// Participants who disconnect get a 30s window to reconnect before being removed.
-const disconnectTimers = new Map();
-
 io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
 
@@ -79,21 +75,13 @@ io.on("connection", (socket) => {
 
             // Always join the socket room first so signaling works
             socket.join(sessionId);
-            // Track for disconnect cleanup
+            // Track metadata for logging
             socket.data.sessionId = sessionId;
             socket.data.userId = userId;
             socket.data.isHost = !!isHost;
 
-            // Cancel any pending grace-period removal for this user
-            if (userId && disconnectTimers.has(userId)) {
-                clearTimeout(disconnectTimers.get(userId));
-                disconnectTimers.delete(userId);
-                console.log(`Reconnect: cancelled removal timer for ${userId}`);
-            }
-
             if (isHost) {
                 console.log(`Host joined socket room for session ${sessionId}`);
-                // Tell all participants the host is ready to receive WebRTC offers
                 io.to(sessionId).emit("host-ready", { sessionId });
                 return;
             }
@@ -133,34 +121,11 @@ io.on("connection", (socket) => {
     });
 
     socket.on("disconnect", () => {
-        const { sessionId, userId, isHost } = socket.data || {};
-        console.log(`Disconnect: socket=${socket.id}, session=${sessionId}, user=${userId}, isHost=${isHost}`);
-
-        if (sessionId && userId && !isHost) {
-            // Wait 30 seconds before removing the participant.
-            // If they reconnect (e.g. returning from background), the timer is cancelled.
-            const timer = setTimeout(() => {
-                disconnectTimers.delete(userId);
-                try {
-                    const db = readDB();
-                    const session = db.sessions.find(s => s.sessionId === sessionId);
-                    if (session) {
-                        const before = session.participants.length;
-                        session.participants = session.participants.filter(p => p.userId !== userId);
-                        if (session.participants.length !== before) {
-                            writeDB(db);
-                            console.log(`Grace period expired: removed ${userId} from ${sessionId}`);
-                            io.to(sessionId).emit("participant-left", { userId });
-                        }
-                    }
-                } catch (err) {
-                    console.error("Disconnect cleanup error:", err.message);
-                }
-            }, 30000); // 30-second grace period
-
-            disconnectTimers.set(userId, timer);
-            console.log(`Disconnect grace period started for ${userId} (30s)`);
-        }
+        // ⚠️ Participants are NOT removed on socket disconnect.
+        // They stay in the session until they explicitly click "Leave" or are removed by the host.
+        // This prevents removal when mobile browsers go to background, receive a notification, etc.
+        const { sessionId, userId } = socket.data || {};
+        console.log(`Socket disconnected: user=${userId}, session=${sessionId} — staying in session (no auto-remove)`);
     });
 });
 

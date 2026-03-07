@@ -183,7 +183,7 @@ export function HostDashboard() {
             switch (message.type) {
               case 'join-session':
                 fetchParticipants()
-                toast.success(`${message.data.name} joined the session`)
+                // No toast — participant list updates silently
                 break
               case 'hand-raise':
                 try {
