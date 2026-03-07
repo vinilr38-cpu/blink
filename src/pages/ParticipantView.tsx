@@ -62,7 +62,13 @@ export function ParticipantView() {
         // Use existing socket or initialize if missing (e.g. on direct page reload)
         if (!socketRef.current) {
           socketRef.current = io(SOCKET_URL, {
-            transports: ['websocket', 'polling']
+            transports: ['websocket', 'polling'],
+            // Reconnection settings — ensures socket reconnects if the OS suspends the app
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 2000,
+            timeout: 10000
           });
         }
 
@@ -201,10 +207,39 @@ export function ParticipantView() {
     }
 
     init()
+
+    // ─── Page Visibility / Background Reconnect ────────────────────────────
+    // When the user switches apps on mobile, the browser suspends JS and the
+    // socket disconnects. When they return, we reconnect and re-emit join-session
+    // so the server cancels its removal grace-period timer.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && sessionId && participantId) {
+        const socket = socketRef.current
+        if (!socket) return
+        if (!socket.connected) {
+          console.log('Returning from background — reconnecting socket...')
+          socket.connect()
+          // Re-join after a short delay to ensure the connection is up
+          setTimeout(() => {
+            socket.emit('join-session', {
+              sessionId,
+              userId: participantId,
+              name,
+              phone,
+              email: user?.email || email
+            })
+          }, 800)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       mounted = false
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       channel?.unsubscribe()
-      socketRef.current?.disconnect()
+      // ⚠️ Do NOT disconnect the socket here — keep it alive for background reconnect.
+      // It will be cleaned up when the participant explicitly leaves (cleanup()).
       webrtcRef.current?.cleanup()
     }
   }, [stage, sessionId, participantId])
