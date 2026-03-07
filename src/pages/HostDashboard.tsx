@@ -62,24 +62,40 @@ export function HostDashboard() {
 
     const init = async () => {
       try {
-        const session = await blink.db.sessions.get(sessionId)
-        if (!session || !mounted) return
+        let sessionCode = ''
 
-        setSessionCode(session.sessionCode)
-
-        // ✅ Always sync session to Render backend so participants can look it up
+        // 1. Try to get session from SDK (first choice)
         try {
-          const storedUser = localStorage.getItem('user')
-          const hostId = storedUser ? JSON.parse(storedUser).id : 'anonymous'
-          await api.post('/sessions/create', {
-            sessionId: session.id,
-            sessionCode: session.sessionCode,
+          const session = await blink.db.sessions.get(sessionId)
+          if (session) {
+            sessionCode = session.sessionCode
+            setSessionCode(session.sessionCode)
+          }
+        } catch (e) {
+          console.warn('SDK Session lookup failed:', e)
+        }
+
+        // 2. Sync/Initialize session on our backend (Mandatory)
+        const storedUser = localStorage.getItem('user')
+        const hostId = storedUser ? JSON.parse(storedUser).id : 'anonymous'
+
+        try {
+          const res = await api.post('/sessions/create', {
+            sessionId: sessionId,
+            sessionCode: sessionCode, // May be empty if SDK failed
             hostId
           })
-          console.log('Session synced to backend:', session.sessionCode)
+
+          // If we didn't have a code from SDK, get it from our backend
+          if (!sessionCode && res.data.session?.sessionCode) {
+            setSessionCode(res.data.session.sessionCode)
+          }
+          console.log('Session synced to backend:', sessionId)
         } catch (syncErr: any) {
           console.warn('Backend sync failed (non-critical):', syncErr?.message)
         }
+
+        if (!mounted) return
 
         const fetchParticipants = async () => {
           try {

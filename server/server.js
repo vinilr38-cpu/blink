@@ -89,9 +89,13 @@ io.on("connection", (socket) => {
             const db = readDB();
             const session = db.sessions.find(s => s.sessionId === sessionId);
             if (session) {
+                // Deduplicate: identify existing participant by userId, email, or name+phone combo
                 const existingIdx = session.participants.findIndex(p =>
-                    (userId && p.userId === userId) || (email && p.email === email)
+                    (userId && p.userId === userId) ||
+                    (email && p.email === email) ||
+                    (name && p.name === name && (phone && p.phone === phone))
                 );
+
                 if (existingIdx === -1) {
                     // New participant — add them
                     session.participants.push({
@@ -112,13 +116,19 @@ io.on("connection", (socket) => {
                 } else {
                     // Returning participant — reset stale state (hand, mute, speaking)
                     const p = session.participants[existingIdx];
+                    // IMPORTANT: Only reset if they were previously disconnected or if they are explicitly re-joining
                     p.handRaised = 0;
                     p.handRaisedAt = null;
                     p.isMuted = 0;
                     p.isSpeaking = 0;
                     p.isConnected = 1;
+                    // Update metadata in case they changed name/phone in the join form
+                    if (name) p.name = name;
+                    if (phone) p.phone = phone;
+                    if (email) p.email = email;
+
                     writeDB(db);
-                    console.log(`Socket Rejoin: Reset state for ${name} in ${sessionId}`);
+                    console.log(`Socket Rejoin: Updated and Reset state for ${name} in ${sessionId}`);
                 }
             }
             io.to(sessionId).emit("participant-joined", { name, userId });
