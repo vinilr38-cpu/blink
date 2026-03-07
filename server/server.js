@@ -273,8 +273,8 @@ app.post("/sessions/create", async (req, res) => {
             };
             db.sessions.push(session);
         } else {
-            // Host is recreating/refreshing the session — clear stale participants
-            session.participants = [];
+            // Host is re-syncing an existing session (e.g., navigating back to dashboard)
+            // DO NOT clear participants here, otherwise they vanish on navigation.
             if (sessionCode) session.sessionCode = sessionCode;
         }
         writeDB(db);
