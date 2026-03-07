@@ -646,122 +646,131 @@ export function HostDashboard() {
           animate="show"
         >
           <AnimatePresence mode="popLayout">
-            {participants.map((participant) => {
-              const hasPermission = Number(participant.hasMicPermission) > 0
-              const isMuted = Number(participant.isMuted) > 0
-              const isSpeaking = Number(participant.isSpeaking) > 0
-              const handRaised = Number(participant.handRaised) > 0
+            {[...participants]
+              .sort((a, b) => {
+                const aRaised = Number(a.handRaised) > 0 && Number(a.hasMicPermission) === 0;
+                const bRaised = Number(b.handRaised) > 0 && Number(b.hasMicPermission) === 0;
+                if (aRaised && !bRaised) return -1;
+                if (!aRaised && bRaised) return 1;
+                return 0;
+              })
+              .map((participant) => {
+                const hasPermission = Number(participant.hasMicPermission) > 0
+                const isMuted = Number(participant.isMuted) > 0
+                const isSpeaking = Number(participant.isSpeaking) > 0
+                const handRaised = Number(participant.handRaised) > 0
+                const showHandHighlight = handRaised && !hasPermission
 
-              return (
-                <motion.div
-                  key={participant.id}
-                  layout
-                  variants={item}
-                  whileHover={{ y: -5 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
-                  className={`user-card relative p-8 glass-morphism border-none overflow-hidden rounded-[2rem] shadow-xl group transition-all duration-500 ${isSpeaking ? 'ring-2 ring-success shadow-[0_0_30px_rgba(16,185,129,0.2)]' : ''}`}
-                  onClick={() => setSelectedParticipant(participant)}
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${isSpeaking ? 'from-success/10 to-transparent' : 'from-primary/5 to-transparent'} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                return (
+                  <motion.div
+                    key={participant.id}
+                    layout
+                    variants={item}
+                    whileHover={{ y: -5 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className={`user-card relative p-8 glass-morphism border-none overflow-hidden rounded-[2rem] shadow-xl group transition-all duration-500 ${isSpeaking ? 'ring-2 ring-success shadow-[0_0_30px_rgba(16,185,129,0.2)]' : ''} ${showHandHighlight ? 'ring-4 ring-amber-500 shadow-[0_0_40px_rgba(245,158,11,0.4)] animate-pulse' : ''}`}
+                    onClick={() => setSelectedParticipant(participant)}
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${isSpeaking ? 'from-success/10 to-transparent' : 'from-primary/5 to-transparent'} opacity-0 group-hover:opacity-100 transition-opacity`} />
 
-                  <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-8">
-                      <div className={`h-16 w-16 rounded-[1.25rem] flex items-center justify-center text-3xl font-black transition-all duration-500 shadow-lg ${isSpeaking ? 'bg-success text-white scale-110' : 'bg-primary/10 text-primary'}`}>
-                        {participant.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <AnimatePresence>
-                          {isSpeaking && (
-                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
-                              <div className="h-8 px-4 rounded-full bg-success text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-success/20">
-                                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                                Speaking
-                              </div>
-                            </motion.div>
-                          )}
-                          {!isSpeaking && handRaised && !hasPermission && (
-                            <motion.div
-                              initial={{ y: -10, opacity: 0 }}
-                              animate={{ y: 0, opacity: 1 }}
-                              className="flex gap-2"
-                            >
-                              <div className="h-10 w-10 flex items-center justify-center rounded-2xl bg-amber-500 text-white shadow-lg shadow-amber-500/20">
-                                <Hand className="h-5 w-5 animate-bounce" />
-                              </div>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); lowerParticipantHand(participant); }}
-                                className="h-10 w-10 flex items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground hover:bg-muted transition-all"
-                                title="Lower Hand"
+                    <div className="relative z-10">
+                      <div className="flex items-start justify-between mb-8">
+                        <div className={`h-16 w-16 rounded-[1.25rem] flex items-center justify-center text-3xl font-black transition-all duration-500 shadow-lg ${isSpeaking ? 'bg-success text-white scale-110' : 'bg-primary/10 text-primary'}`}>
+                          {participant.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <AnimatePresence>
+                            {isSpeaking && (
+                              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+                                <div className="h-8 px-4 rounded-full bg-success text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-success/20">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                                  Speaking
+                                </div>
+                              </motion.div>
+                            )}
+                            {!isSpeaking && handRaised && !hasPermission && (
+                              <motion.div
+                                initial={{ y: -10, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                className="flex gap-2"
                               >
-                                <UserX className="h-4 w-4" />
+                                <div className="h-10 w-10 flex items-center justify-center rounded-2xl bg-amber-500 text-white shadow-lg shadow-amber-500/20">
+                                  <Hand className="h-5 w-5 animate-bounce" />
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); lowerParticipantHand(participant); }}
+                                  className="h-10 w-10 flex items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground hover:bg-muted transition-all"
+                                  title="Lower Hand"
+                                >
+                                  <UserX className="h-4 w-4" />
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+
+                      <div className="mb-8">
+                        <h4 className="text-2xl font-black text-foreground mb-1 tracking-tight">{participant.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-success opacity-50" />
+                          <p className="text-[10px] font-black text-muted-foreground tracking-[0.2em] uppercase">{participant.phone || 'GUEST'}</p>
+                        </div>
+                      </div>
+
+                      {isSpeaking && remoteStreams.get(participant.id) && (
+                        <div className="mb-6 -mx-2 h-12">
+                          <AudioWaveform stream={remoteStreams.get(participant.id)!} />
+                        </div>
+                      )}
+
+                      <div className="flex gap-4">
+                        <AnimatePresence mode="wait">
+                          {!hasPermission ? (
+                            <motion.button
+                              key="grant"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              className={`flex-1 h-14 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${handRaised ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'bg-muted/50 text-muted-foreground opacity-50'}`}
+                              onClick={(e) => { e.stopPropagation(); grantMicPermission(participant); }}
+                            >
+                              <Mic className="h-5 w-5" /> <span>Invite</span>
+                            </motion.button>
+                          ) : (
+                            <motion.div
+                              key="controls"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="flex gap-2 w-full"
+                            >
+                              <button
+                                className={`flex-1 h-14 rounded-2xl flex items-center justify-center transition-all ${isMuted ? 'bg-destructive/10 text-destructive hover:bg-destructive/20' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
+                                onClick={(e) => { e.stopPropagation(); isMuted ? unmuteParticipant(participant) : muteParticipant(participant); }}
+                              >
+                                {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+                              </button>
+                              <button
+                                className="flex-1 h-14 rounded-2xl bg-muted/50 hover:bg-muted text-foreground font-black text-[10px] uppercase tracking-widest transition-all"
+                                onClick={(e) => { e.stopPropagation(); denyMicPermission(participant); }}
+                              >
+                                Revoke
                               </button>
                             </motion.div>
                           )}
                         </AnimatePresence>
+
+                        <button
+                          className="w-14 h-14 flex items-center justify-center rounded-2xl bg-muted/30 hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all"
+                          onClick={(e) => { e.stopPropagation(); removeParticipant(participant); }}
+                        >
+                          <UserX className="h-6 w-6" />
+                        </button>
                       </div>
                     </div>
-
-                    <div className="mb-8">
-                      <h4 className="text-2xl font-black text-foreground mb-1 tracking-tight">{participant.name}</h4>
-                      <div className="flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-success opacity-50" />
-                        <p className="text-[10px] font-black text-muted-foreground tracking-[0.2em] uppercase">{participant.phone || 'GUEST'}</p>
-                      </div>
-                    </div>
-
-                    {isSpeaking && remoteStreams.get(participant.id) && (
-                      <div className="mb-6 -mx-2 h-12">
-                        <AudioWaveform stream={remoteStreams.get(participant.id)!} />
-                      </div>
-                    )}
-
-                    <div className="flex gap-4">
-                      <AnimatePresence mode="wait">
-                        {!hasPermission ? (
-                          <motion.button
-                            key="grant"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className={`flex-1 h-14 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${handRaised ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'bg-muted/50 text-muted-foreground opacity-50'}`}
-                            onClick={(e) => { e.stopPropagation(); grantMicPermission(participant); }}
-                          >
-                            <Mic className="h-5 w-5" /> <span>Invite</span>
-                          </motion.button>
-                        ) : (
-                          <motion.div
-                            key="controls"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="flex gap-2 w-full"
-                          >
-                            <button
-                              className={`flex-1 h-14 rounded-2xl flex items-center justify-center transition-all ${isMuted ? 'bg-destructive/10 text-destructive hover:bg-destructive/20' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
-                              onClick={(e) => { e.stopPropagation(); isMuted ? unmuteParticipant(participant) : muteParticipant(participant); }}
-                            >
-                              {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
-                            </button>
-                            <button
-                              className="flex-1 h-14 rounded-2xl bg-muted/50 hover:bg-muted text-foreground font-black text-[10px] uppercase tracking-widest transition-all"
-                              onClick={(e) => { e.stopPropagation(); denyMicPermission(participant); }}
-                            >
-                              Revoke
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-
-                      <button
-                        className="w-14 h-14 flex items-center justify-center rounded-2xl bg-muted/30 hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all"
-                        onClick={(e) => { e.stopPropagation(); removeParticipant(participant); }}
-                      >
-                        <UserX className="h-6 w-6" />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              )
-            })}
+                  </motion.div>
+                )
+              })}
           </AnimatePresence>
         </motion.div>
 
