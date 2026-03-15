@@ -16,6 +16,8 @@ import api from '@/lib/api'
 import AudioWaveform from '@/components/AudioWaveform'
 import { io } from 'socket.io-client'
 import type { Socket } from 'socket.io-client'
+import AdSense from '@/components/AdSense'
+import AMPAd from '@/components/AMPAd'
 
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
@@ -590,6 +592,8 @@ export function ParticipantView() {
                 </button>
               </CardContent>
             </Card>
+            <AdSense className="mt-6" />
+            <AMPAd className="mt-4" />
           </motion.div>
         ) : (
           <motion.div
@@ -708,6 +712,8 @@ export function ParticipantView() {
                 </div>
               </CardContent>
             </Card>
+            <AdSense className="mt-6" />
+            <AMPAd className="mt-4" />
           </motion.div>
         )}
       </AnimatePresence>

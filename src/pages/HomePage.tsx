@@ -5,6 +5,8 @@ import { Mic, Users, Radio, Headphones, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '@/lib/api'
+import AdSense from '@/components/AdSense'
+import AMPAd from '@/components/AMPAd'
 
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
@@ -197,6 +199,11 @@ export function HomePage() {
             </motion.div>
           </motion.div>
         </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 flex flex-col gap-4">
+        <AdSense />
+        <AMPAd />
       </div>
 
       {/* Features */}
