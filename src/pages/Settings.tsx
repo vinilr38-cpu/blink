@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { toast } from 'sonner'
 import { db } from '@/lib/firebase'
-import { doc, updateDoc } from 'firebase/firestore'
+import { doc, setDoc } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 import { useTheme } from '@/components/theme-provider'
 
@@ -41,11 +41,11 @@ export function Settings() {
                 return
             }
 
-            await updateDoc(doc(db, "users", uid), {
+            await setDoc(doc(db, "users", uid), {
                 name: form.name,
                 phone: form.phone,
                 role: form.role
-            })
+            }, { merge: true })
 
             // Update localStorage with new values
             const updatedUser = { ...user, name: form.name, phone: form.phone, role: form.role }
