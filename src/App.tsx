@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { auth } from '@/lib/firebase'
+import { db } from '@/lib/firebase'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
 import { HomePage } from './pages/HomePage'
@@ -32,28 +34,42 @@ function AppContent() {
   const [collapsed, setCollapsed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // 1. Firebase Auth listener
+  // 1. Firebase Auth listener — fetch role from Firestore to avoid overwriting it
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        if (user.emailVerified) {
-          console.log("User already logged in and verified:", user.email);
-          // Sync with localStorage for existing logic if necessary
-          const token = await user.getIdToken();
-          localStorage.setItem("token", token);
-          localStorage.setItem("user", JSON.stringify({
-            uid: user.uid,
-            email: user.email,
-            // Assuming we might need to fetch role from Firestore if it's missing
-          }));
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        if (firebaseUser.emailVerified) {
+          try {
+            const token = await firebaseUser.getIdToken();
+            localStorage.setItem("token", token);
+
+            // Fetch full profile from Firestore (includes role)
+            const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+            const firestoreData = userDoc.exists() ? userDoc.data() : {};
+
+            // Preserve existing localStorage values if Firestore is missing fields
+            const existingUser = (() => {
+              try { return JSON.parse(localStorage.getItem("user") || "{}") } catch { return {} }
+            })();
+
+            const mergedUser = {
+              ...existingUser,
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firestoreData.name || existingUser.name || "",
+              phone: firestoreData.phone || existingUser.phone || "",
+              role: firestoreData.role || existingUser.role || "participant",
+            };
+
+            localStorage.setItem("user", JSON.stringify(mergedUser));
+          } catch (err) {
+            console.error("Error syncing user from Firestore:", err);
+          }
         } else {
           console.log("User logged in but NOT verified");
         }
       } else {
         console.log("No user logged in");
-        // Optional: clear localStorage if desired on logout
-        // localStorage.removeItem("token");
-        // localStorage.removeItem("user");
       }
     });
 
