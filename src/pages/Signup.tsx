@@ -1,4 +1,7 @@
 import { useState } from "react"
+import { auth, db } from "@/lib/firebase"
+import { createUserWithEmailAndPassword } from "firebase/auth"
+import { doc, setDoc } from "firebase/firestore"
 import api from "@/lib/api"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -26,11 +29,28 @@ export default function Signup() {
 
         setLoading(true)
         try {
-            await api.post("/signup", form)
+            // 1. Create user in Firebase Auth
+            const userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password)
+            const user = userCredential.user
+
+            // 2. Store metadata in Firestore
+            await setDoc(doc(db, "users", user.uid), {
+                uid: user.uid,
+                name: form.name,
+                email: form.email,
+                phone: form.phone,
+                role: form.role,
+                createdAt: new Date().toISOString()
+            })
+
+            // 3. Optional: Still notify the backend if needed for other logic
+            // await api.post("/signup", { ...form, firebaseUid: user.uid })
+
             toast.success("Account created successfully!")
             navigate("/login")
         } catch (err: any) {
-            toast.error(err.response?.data?.error || "Signup failed")
+            console.error("Signup error:", err)
+            toast.error(err.message || "Signup failed")
         } finally {
             setLoading(false)
         }
@@ -74,6 +94,7 @@ export default function Signup() {
                                 <div className="relative">
                                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                     <Input
+                                        id="email"
                                         type="email"
                                         placeholder="john@example.com"
                                         className="h-14 pl-12 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium"
@@ -102,6 +123,7 @@ export default function Signup() {
                                 <div className="relative">
                                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                     <Input
+                                        id="password"
                                         type="password"
                                         placeholder="••••••••"
                                         className="h-14 pl-12 rounded-xl border-2 border-primary/5 focus:border-primary transition-all text-lg font-medium"
@@ -142,6 +164,7 @@ export default function Signup() {
                             </div>
 
                             <Button
+                                id="signupBtn"
                                 type="submit"
                                 disabled={loading}
                                 className="w-full h-14 rounded-xl text-lg font-black tracking-tight flex items-center justify-center gap-2 mt-4"

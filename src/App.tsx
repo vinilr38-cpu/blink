@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { auth } from '@/lib/firebase'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
 import { HomePage } from './pages/HomePage'
@@ -30,7 +32,35 @@ function AppContent() {
   const [collapsed, setCollapsed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Auth guard — redirect to login if no token and not on public pages
+  // 1. Firebase Auth listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        if (user.emailVerified) {
+          console.log("User already logged in and verified:", user.email);
+          // Sync with localStorage for existing logic if necessary
+          const token = await user.getIdToken();
+          localStorage.setItem("token", token);
+          localStorage.setItem("user", JSON.stringify({
+            uid: user.uid,
+            email: user.email,
+            // Assuming we might need to fetch role from Firestore if it's missing
+          }));
+        } else {
+          console.log("User logged in but NOT verified");
+        }
+      } else {
+        console.log("No user logged in");
+        // Optional: clear localStorage if desired on logout
+        // localStorage.removeItem("token");
+        // localStorage.removeItem("user");
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Auth guard — redirect to login if no token and not on public pages
   const token = localStorage.getItem("token")
   const user = (() => { try { return JSON.parse(localStorage.getItem("user") || "null") } catch { return null } })()
 
@@ -89,7 +119,7 @@ function AppContent() {
             </nav>
 
             {user?.role === 'host' && (
-              <div className="mt-auto">
+              <div className="mt-auto space-y-4">
                 <motion.button
                   className="primary-btn w-full flex items-center justify-center gap-3 py-4 text-sm font-bold shadow-2xl shadow-primary/30"
                   whileHover={{ scale: 1.02, y: -2 }}
@@ -99,6 +129,19 @@ function AppContent() {
                   <span className="text-lg">🎙️</span>
                   {!collapsed && <span>Create Session</span>}
                 </motion.button>
+                
+                <button
+                  id="logoutBtn"
+                  className="w-full flex items-center gap-3 p-4 text-sm font-bold text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-xl transition-all"
+                  onClick={async () => {
+                    await signOut(auth);
+                    localStorage.clear();
+                    window.location.href = "/login";
+                  }}
+                >
+                  <span className="text-xl">🚪</span>
+                  {!collapsed && <span>Logout</span>}
+                </button>
               </div>
             )}
           </div>
