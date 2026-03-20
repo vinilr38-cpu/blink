@@ -68,7 +68,16 @@ export async function signup() {
     alert("Verification email sent! Check your Gmail.");
 
   } catch (err) {
-    alert(err.message);
+    // ✅ Handle specific error codes cleanly
+    if (err.code === "auth/email-already-in-use") {
+      alert("This email is already registered. Please login instead.");
+    } else if (err.code === "auth/weak-password") {
+      alert("Password should be at least 6 characters.");
+    } else if (err.code === "auth/invalid-email") {
+      alert("Please enter a valid email address.");
+    } else {
+      alert(err.message);
+    }
   }
 }
 
@@ -100,7 +109,11 @@ export async function login() {
     window.location.href = "/dashboard.html";
 
   } catch (err) {
-    alert(err.message);
+    if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+      alert("Invalid email or password. Please try again.");
+    } else {
+      alert(err.message);
+    }
   }
 }
 
@@ -110,7 +123,7 @@ export async function login() {
 // ==========================
 export async function forgotPassword() {
   const emailInput = document.getElementById("email");
-  
+
   if (!emailInput) {
     alert("Email field not found!");
     return;
@@ -125,10 +138,19 @@ export async function forgotPassword() {
 
   try {
     await sendPasswordResetEmail(auth, email);
-    alert("Password reset email sent! Check Gmail.");
+    alert("Password reset email sent! Check your Gmail inbox and spam folder.");
 
   } catch (err) {
-    alert(err.message);
+    if (err.code === "auth/user-not-found") {
+      alert("No account found with this email address.");
+    } else if (err.code === "auth/invalid-email") {
+      alert("Please enter a valid email address.");
+    } else if (err.code === "auth/too-many-requests") {
+      alert("Too many requests. Please wait a few minutes and try again.");
+    } else {
+      console.error("Password reset error:", err.code, err.message);
+      alert("Failed to send reset email. Error: " + err.code);
+    }
   }
 }
 
@@ -155,7 +177,11 @@ export async function googleSignIn() {
     window.location.href = "/dashboard.html";
 
   } catch (err) {
-    alert(err.message);
+    if (err.code === "auth/popup-closed-by-user") {
+      // User closed popup — no need to alert
+    } else {
+      alert(err.message);
+    }
   }
 }
 

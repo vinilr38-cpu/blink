@@ -50,7 +50,11 @@ export default function Signup() {
             navigate("/login")
         } catch (err: any) {
             console.error("Signup error:", err)
-            toast.error(err.message || "Signup failed")
+            if (err.code === "auth/email-already-in-use") {
+                toast.error("This email is already registered. Please login instead.")
+            } else {
+                toast.error(err.message || "Signup failed")
+            }
         } finally {
             setLoading(false)
         }
