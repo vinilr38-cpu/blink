@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { toast } from 'sonner'
-import api from '@/lib/api'
+import { db } from '@/lib/firebase'
+import { doc, updateDoc } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 import { useTheme } from '@/components/theme-provider'
 
@@ -33,28 +34,34 @@ export function Settings() {
         if (!user) return
         setLoading(true)
         try {
-            const res = await api.put('/users/profile', {
-                id: user.id || user._id,
-                email: user.email,  // used as fallback identifier on the server
-                ...form
-            })
-            const updatedUser = {
-                ...res.data.user,
-                id: res.data.user.id || res.data.user._id
+            // Use Firebase UID to update Firestore directly
+            const uid = user.uid || user.id || user._id
+            if (!uid) {
+                toast.error("User ID not found. Please log out and log back in.")
+                return
             }
+
+            await updateDoc(doc(db, "users", uid), {
+                name: form.name,
+                phone: form.phone,
+                role: form.role
+            })
+
+            // Update localStorage with new values
+            const updatedUser = { ...user, name: form.name, phone: form.phone, role: form.role }
             localStorage.setItem('user', JSON.stringify(updatedUser))
             setUser(updatedUser)
+
             toast.success('Profile updated successfully!')
-            // Force a full reload to update sidebar/navigation if role changed
+
+            // Force reload if role changed so sidebar/navigation updates
             if (form.role !== user.role) {
-                // Clear session redirect so user doesn't get bounced back to old session
                 localStorage.removeItem('activeSessionId')
-                setTimeout(() => {
-                    window.location.href = '/'
-                }, 500)
+                setTimeout(() => { window.location.href = '/' }, 500)
             }
         } catch (err: any) {
-            toast.error(err.response?.data?.error || 'Failed to update profile')
+            console.error("Settings save error:", err)
+            toast.error(err.message || 'Failed to update profile')
         } finally {
             setLoading(false)
         }
