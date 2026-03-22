@@ -42,13 +42,18 @@ export function HomePage() {
         throw new Error('SDK failed to return a valid Session ID')
       }
 
-      // Step 2: Sync with our backend
-      toast.info('Step 2: Syncing with live backend...')
-      await api.post('/sessions/create', {
-        sessionId: session.id,
-        sessionCode: session.sessionCode,
-        hostId: storedUser ? storedUser.id : 'anonymous'
-      })
+      // Step 2: Sync with our backend (non-critical — a sleeping/slow backend
+      // should NOT block session creation; the host dashboard will retry on load)
+      try {
+        toast.info('Step 2: Syncing with live backend...')
+        await api.post('/sessions/create', {
+          sessionId: session.id,
+          sessionCode: sessionCode,   // use local var — SDK may not echo it back
+          hostId: storedUser ? storedUser.id : 'anonymous'
+        })
+      } catch (syncErr: any) {
+        console.warn('Backend sync failed (non-critical, will retry on dashboard):', syncErr?.message)
+      }
 
       localStorage.setItem('activeSessionId', session.id)
       toast.success('Session created successfully!')
