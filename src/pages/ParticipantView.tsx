@@ -24,7 +24,7 @@ const blink = blinkSDK as any
 
 // Auto-detect local network testing
 const isLocalNetwork = window.location.hostname === 'localhost' || /^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(window.location.hostname);
-const defaultSocketUrl = isLocalNetwork ? `http://${window.location.hostname}:5001` : 'https://blink-3.onrender.com';
+const defaultSocketUrl = isLocalNetwork ? `http://${window.location.hostname}:5002` : 'https://blink-3.onrender.com';
 const SOCKET_URL = import.meta.env.VITE_API_URL || defaultSocketUrl;
 
 
