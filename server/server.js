@@ -510,6 +510,6 @@ app.get("/participants", async (req, res) => {
 });
 
 // ─── START SERVER ─────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 5002;
+const PORT = process.env.PORT || 5001;
 // Bind to 0.0.0.0 to ensure it accepts connections from the local network (LAN)
 httpServer.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT} — using file-based storage (db.json)`));

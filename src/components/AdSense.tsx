@@ -20,7 +20,7 @@ export function AdSense({ className }: AdSenseProps) {
     }, []);
 
     return (
-        <div className={`adsense-container my-8 w-full flex justify-center overflow-hidden ${className}`}>
+        <div className={`adsense-container my-8 w-full flex justify-center overflow-hidden ${className ?? ''}`}>
             {/* ADSENSE AD 1 */}
             <ins
                 className="adsbygoogle"

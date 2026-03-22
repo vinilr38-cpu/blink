@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { auth } from "@/lib/firebase"
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth"
-import api from "@/lib/api"
+import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -67,7 +66,6 @@ export default function Login() {
     const handleGoogleSignIn = async () => {
         setLoading(true)
         try {
-            const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth")
             const provider = new GoogleAuthProvider()
             const result = await signInWithPopup(auth, provider)
             const user = result.user
