@@ -20,8 +20,8 @@ const blink = blinkSDK as any
 
 // Auto-detect local network testing
 const isLocalNetwork = window.location.hostname === 'localhost' || /^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(window.location.hostname);
-const defaultSocketUrl = isLocalNetwork ? `http://${window.location.hostname}:5001` : 'https://blink-3.onrender.com';
-const SOCKET_URL = import.meta.env.VITE_API_URL || defaultSocketUrl;
+const defaultSocketUrl = isLocalNetwork ? (import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5002`) : 'https://blink-backend-0e54.onrender.com';
+const SOCKET_URL = defaultSocketUrl;
 
 const container: any = {
   hidden: { opacity: 0 },
@@ -497,7 +497,10 @@ export function HostDashboard() {
   const speakingCount = participants.filter(p => Number(p.isSpeaking) > 0).length
 
   return (
-    <div className="flex-1 p-4 sm:p-8 bg-dot-pattern transition-theme relative overflow-hidden">
+    <div 
+      className="flex-1 p-4 sm:p-8 bg-dot-pattern transition-theme relative overflow-hidden"
+      onClick={() => webrtcRef.current?.resumeAudioContext()}
+    >
       {/* Decorative Background Elements */}
       <div className="absolute top-[-5%] left-[-5%] w-[30%] h-[30%] bg-primary/5 rounded-full blur-[100px] animate-pulse" />
       <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] animate-pulse" />
