@@ -2,23 +2,12 @@ services:
   - type: web
     name: blink-backend
     runtime: node
-    buildCommand: npm install
+    buildCommand: npm install && npm install --prefix server
     startCommand: node server/server.js
-    ipAccessControl:
-      rules:
-        - action: allow
-          source: 74.220.48.0/24
-          description: "Render NAT IP range 1"
-        - action: allow
-          source: 74.220.56.0/24
-          description: "Render NAT IP range 2"
     envVars:
       - key: NODE_ENV
         value: production
-      - key: JWT_SECRET
-        sync: false
       - key: PORT
-        value: 10000
-    # The IP ranges provided by the user might be for inbound/outbound rules
-    # Networking section to allow/restrict IPs if needed
-    # (Render networking config usually goes here)
+        value: 5002
+      - key: JWT_SECRET
+        value: blink_secret_key_2024
