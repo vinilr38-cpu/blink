@@ -4,6 +4,7 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics } from "firebase/analytics";
 
+// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyC2QHDEDzX7WhPO6c0CSdsYH16XU48Vdfc",
   authDomain: "audio-54955.firebaseapp.com",
@@ -19,12 +20,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-
-// Analytics is optional and might fail in some environments (e.g., SSR)
-let analytics = null;
-if (typeof window !== "undefined") {
-  analytics = getAnalytics(app);
-}
+const analytics = getAnalytics(app);
 
 export { app, auth, db, storage, analytics };
 export default app;
