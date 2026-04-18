@@ -2,7 +2,8 @@ import axios from "axios";
 
 // Auto-detect local network testing (e.g. 192.168.x.x or localhost)
 const isLocalNetwork = window.location.hostname === 'localhost' || /^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(window.location.hostname);
-const defaultApiUrl = isLocalNetwork ? `http://${window.location.hostname}:5001` : 'https://blink-3.onrender.com';
+const productionApiUrl = 'https://blink-3.onrender.com';
+const defaultApiUrl = isLocalNetwork ? `http://${window.location.hostname}:5001` : productionApiUrl;
 
 const API_URL = import.meta.env.VITE_API_URL || defaultApiUrl;
 
