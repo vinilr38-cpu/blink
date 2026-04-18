@@ -8,7 +8,7 @@ import { toast } from 'react-hot-toast'
 import { QRCodeSVG } from 'qrcode.react'
 import { Button } from '@/components/ui/button'
 import { WebRTCManager } from '@/lib/webrtc'
-import { AudioWaveform } from '@/components/AudioWaveform'
+import AudioWaveform from '@/components/AudioWaveform'
 import { Participant } from '@/types'
 
 // Cast blink to any to avoid TS errors on dynamic SDK methods
