@@ -1,12 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { blink as blinkSDK } from '@/lib/blink'
-import { Mic, Users, Radio, Headphones, ArrowRight } from 'lucide-react'
-import { toast } from 'sonner'
-import { motion, AnimatePresence } from 'framer-motion'
-import api from '@/lib/api'
-import AdSense from '@/components/AdSense'
-import AMPAd from '@/components/AMPAd'
+import { db } from '@/lib/firebase'
+import { doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
@@ -38,21 +31,19 @@ export function HomePage() {
         isActive: 1
       })
 
-      if (!session || !session.id) {
-        throw new Error('SDK failed to return a valid Session ID')
-      }
-
-      // Step 2: Sync with our backend (non-critical — a sleeping/slow backend
-      // should NOT block session creation; the host dashboard will retry on load)
+      // Step 2: Sync with Firestore
       try {
-        toast.info('Step 2: Syncing with live backend...')
-        await api.post('/sessions/create', {
+        const sessionRef = doc(db, 'sessions', session.id)
+        await setDoc(sessionRef, {
           sessionId: session.id,
-          sessionCode: sessionCode,   // use local var — SDK may not echo it back
-          hostId: storedUser ? storedUser.id : 'anonymous'
+          sessionCode: sessionCode.toUpperCase(),
+          hostId: storedUser ? storedUser.id : 'anonymous',
+          isActive: 1,
+          createdAt: serverTimestamp()
         })
+        toast.info('Session synchronized with cloud')
       } catch (syncErr: any) {
-        console.warn('Backend sync failed (non-critical, will retry on dashboard):', syncErr?.message)
+        console.warn('Firestore sync failed:', syncErr?.message)
       }
 
       localStorage.setItem('activeSessionId', session.id)
@@ -76,16 +67,18 @@ export function HomePage() {
     const storedUser = (() => { try { return JSON.parse(localStorage.getItem('user') || 'null') } catch (e) { return null } })()
     if (storedUser && storedUser.role === 'host') {
       try {
-        toast.info('Switching your role to participant to join the session...')
-        const res = await api.put('/users/profile', {
-          id: storedUser.id,
-          name: storedUser.name,
-          phone: storedUser.phone,
-          role: 'participant'
-        })
-        localStorage.setItem('user', JSON.stringify(res.data.user))
-        // Small delay to ensure storage is updated before navigation
-        await new Promise(r => setTimeout(r, 800))
+        toast.info('Switching your role to participant...')
+        storedUser.role = 'participant'
+        localStorage.setItem('user', JSON.stringify(storedUser))
+        
+        // If there's a registered user document, update it in Firestore
+        if (storedUser.id) {
+          const userRef = doc(db, 'users', storedUser.id)
+          await updateDoc(userRef, { role: 'participant' }).catch(() => {
+            // Silently fail if user doc doesn't exist yet
+          })
+        }
+        await new Promise(r => setTimeout(r, 500))
       } catch (err) {
         console.error('Failed to auto-switch role:', err)
       }

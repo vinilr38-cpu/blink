@@ -1,31 +1,21 @@
-/// <reference types="vite/client" />
-import { useState, useEffect, useRef } from 'react'
+import { db } from '@/lib/firebase'
+import { collection, query, where, getDocs, doc, onSnapshot, setDoc, updateDoc, deleteDoc, serverTimestamp, addDoc } from 'firebase/firestore'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Mic, MicOff, Headphones, Radio, Hand, ArrowLeft } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { blink as blinkSDK } from '@/lib/blink'
 import { WebRTCManager } from '@/lib/webrtc'
-import { WebRTCMessage } from '@/types'
-import { Hand, Mic, MicOff, ArrowLeft, Headphones, Radio } from 'lucide-react'
-import { toast } from 'sonner'
-import { motion, AnimatePresence } from 'framer-motion'
-import api from '@/lib/api'
-import AudioWaveform from '@/components/AudioWaveform'
-import { io } from 'socket.io-client'
-import type { Socket } from 'socket.io-client'
-import AdSense from '@/components/AdSense'
-import AMPAd from '@/components/AMPAd'
+import { AudioWaveform } from '@/components/AudioWaveform'
+import { AdSense } from '@/components/AdSense'
+import { AMPAd } from '@/components/AMPAd'
 
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
-
-// Auto-detect local network testing
-const isLocalNetwork = window.location.hostname === 'localhost' || /^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(window.location.hostname);
-const defaultSocketUrl = isLocalNetwork ? `http://${window.location.hostname}:5001` : 'https://blink-3.onrender.com';
-const SOCKET_URL = import.meta.env.VITE_API_URL || defaultSocketUrl;
 
 
 export function ParticipantView() {
@@ -48,7 +38,6 @@ export function ParticipantView() {
 
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
-  const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
     if (stage === 'join' || !sessionId || !participantId) return
@@ -58,169 +47,111 @@ export function ParticipantView() {
 
     const init = async () => {
       try {
+        // 1. Set up Firestore listener for this participant
+        const participantRef = doc(db, 'participants', participantId)
+        const unsubscribeFirestore = onSnapshot(participantRef, (docSnap) => {
+          if (!mounted || !docSnap.exists()) return
+          const data = docSnap.data()
+          
+          if (data.hasMicPermission !== undefined) {
+            const hasPerm = Number(data.hasMicPermission) > 0
+            if (hasPerm && !hasMicPermission) {
+              setHasMicPermission(true)
+              toast.success('🎤 Microphone permission granted!')
+              startAudioStream()
+            } else if (!hasPerm && hasMicPermission) {
+              setHasMicPermission(false)
+              toast.error('Microphone permission revoked')
+              stopAudioStream()
+            }
+          }
+          
+          if (data.handRaised !== undefined) {
+            setHandRaised(Number(data.handRaised) > 0)
+          }
+          
+          if (data.isMuted !== undefined) {
+            const muted = Number(data.isMuted) > 0
+            if (muted !== isMuted) {
+              setIsMuted(muted)
+              if (muted) {
+                webrtcRef.current?.muteLocalAudio()
+                toast.info('You have been muted')
+              } else {
+                webrtcRef.current?.unmuteLocalAudio()
+                toast.info('You have been unmuted')
+              }
+            }
+          }
+        })
+
+        // 2. Set up signaling channel
         channel = blink.realtime.channel(`session-${sessionId}`)
         channelRef.current = channel
 
-        // Use existing socket or initialize if missing (e.g. on direct page reload)
-        if (!socketRef.current) {
-          socketRef.current = io(SOCKET_URL, {
-            transports: ['websocket', 'polling'],
-            // Reconnection settings — ensures socket reconnects if the OS suspends the app
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 2000,
-            timeout: 10000
-          });
-        }
+        // 3. Signaling listener via Firestore
+        const signalingRef = collection(db, 'sessions', sessionId, 'signaling')
+        const sigQ = query(signalingRef, where('to', '==', participantId))
+        
+        const unsubscribeSignaling = onSnapshot(sigQ, async (snapshot) => {
+          if (!mounted) return
+          for (const change of snapshot.docChanges()) {
+            if (change.type === 'added') {
+              const message = change.doc.data()
+              const msgId = change.doc.id
 
-        const socket = socketRef.current;
-        socket.emit('join-session', {
-          sessionId,
-          userId: participantId,
-          name,
-          phone,
-          email: user?.email || email
-        });
-
-        // Listen for signaling over Socket.io (handles BOTH WebRTC signaling AND control messages)
-        socket.on('webrtc-signaling', async (message: any) => {
-          if (!mounted || message.to !== participantId) return
-
-          try {
-            switch (message.type) {
-              // WebRTC signaling
-              case 'answer':
-                if (webrtcRef.current) await webrtcRef.current.handleAnswer(sessionId, message.data)
-                break
-              case 'ice-candidate':
-                if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(sessionId, message.data)
-                break
-              // Control messages — host sends these to grant/revoke mic access
-              case 'mic-permission':
-                if (message.data.granted) {
-                  setHasMicPermission(true)
-                  toast.success('🎤 Microphone permission granted!')
-                  await startAudioStream()
-                } else {
-                  setHasMicPermission(false)
-                  toast.error('Microphone permission revoked')
-                  stopAudioStream()
+              try {
+                switch (message.type) {
+                  case 'answer':
+                    if (webrtcRef.current) await webrtcRef.current.handleAnswer(sessionId, message.data)
+                    break
+                  case 'ice-candidate':
+                    if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(sessionId, message.data)
+                    break
+                  case 'mic-permission':
+                    if (message.data.granted) {
+                      setHasMicPermission(true)
+                      toast.success('🎤 Microphone permission granted!')
+                      startAudioStream()
+                    } else {
+                      setHasMicPermission(false)
+                      toast.error('Microphone permission revoked')
+                      stopAudioStream()
+                    }
+                    break
+                  case 'remove':
+                    toast.error('You have been removed from the session')
+                    cleanup()
+                    setStage('join')
+                    break
                 }
-                break
-              case 'mute':
-                setIsMuted(true)
-                webrtcRef.current?.muteLocalAudio()
-                toast.info('You have been muted')
-                break
-              case 'unmute':
-                setIsMuted(false)
-                webrtcRef.current?.unmuteLocalAudio()
-                toast.info('You have been unmuted')
-                break
-              case 'remove':
-                toast.error('You have been removed from the session')
-                cleanup()
-                setStage('join')
-                break
-            }
-          } catch (err) {
-            console.error('Socket signaling error:', err)
-          }
-        })
-
-        // Listen for hand-state updates from the server/host
-        socket.on('hand-raise', ({ participantId: pid }: any) => {
-          if (pid === participantId) setHandRaised(true)
-        })
-        socket.on('hand-lower', ({ participantId: pid }: any) => {
-          if (pid === participantId) setHandRaised(false)
-        })
-        socket.on('participant-updated', ({ participantId: pid, updates }: any) => {
-          if (pid === participantId && updates.handRaised !== undefined) {
-            setHandRaised(Number(updates.handRaised) > 0)
-          }
-          if (pid === participantId && updates.hasMicPermission !== undefined) {
-            setHasMicPermission(Number(updates.hasMicPermission) > 0)
-            if (Number(updates.hasMicPermission) > 0) {
-              toast.success('🎤 Microphone permission granted!')
-              startAudioStream()
+                // Cleanup processed signal
+                await deleteDoc(doc(db, 'sessions', sessionId, 'signaling', msgId))
+              } catch (err) {
+                console.error('Signaling processing error:', err)
+              }
             }
           }
         })
 
-        socket.on('host-ready', async ({ sessionId: readySessionId }: any) => {
-          if (!mounted || readySessionId !== sessionId) return
-          if (hasMicPermission && webrtcRef.current) {
-            console.log('Host is ready - initiating WebRTC offer')
-            await startAudioStream()
+        // Listen for session end via the session document itself
+        const sessionRef = doc(db, 'sessions', sessionId)
+        const unsubscribeSession = onSnapshot(sessionRef, (docSnap) => {
+          if (!mounted) return
+          if (docSnap.exists() && docSnap.data().isActive === 0) {
+            toast.error('Session ended by host')
+            cleanup()
+            setStage('join')
           }
         })
 
         await channel.subscribe({ userId: participantId })
 
-        // 🚀 "socket.emit" equivalent for joining
-        const joinData = {
-          sessionId,
-          name: name.trim(),
-          phone: phone.trim(),
-          email: user ? user.email : email.trim(),
-          userId: user ? user.id : null
+        return () => {
+          unsubscribeFirestore()
+          unsubscribeSignaling()
+          unsubscribeSession()
         }
-        await channel.publish('webrtc', {
-          type: 'join-session',
-          from: participantId,
-          to: sessionId,
-          data: joinData
-        }, { userId: participantId })
-
-        channel.onMessage(async (msg: any) => {
-          if (!mounted || msg.type !== 'webrtc') return
-          const message: WebRTCMessage = msg.data
-          if (message.to !== participantId) return
-
-          try {
-            switch (message.type) {
-              case 'mic-permission':
-                if (message.data.granted) {
-                  setHasMicPermission(true)
-                  toast.success('Microphone permission granted!')
-                  await startAudioStream()
-                } else {
-                  setHasMicPermission(false)
-                  toast.error('Microphone permission revoked')
-                  stopAudioStream()
-                }
-                break
-
-              case 'mute':
-                setIsMuted(true)
-                webrtcRef.current?.muteLocalAudio()
-                toast.info('You have been muted')
-                break
-
-              case 'unmute':
-                setIsMuted(false)
-                webrtcRef.current?.unmuteLocalAudio()
-                toast.info('You have been unmuted')
-                break
-
-              case 'remove':
-                toast.error('Removed from session')
-                cleanup()
-                setStage('join')
-                break
-
-              case 'session-ended':
-                toast.error('Session ended by host')
-                cleanup()
-                setStage('join')
-                break
-            }
-          } catch (error) {
-            console.error('Error handling message:', error)
-          }
-        })
       } catch (error) {
         console.error('Failed to initialize participant view:', error)
       }
@@ -228,38 +159,9 @@ export function ParticipantView() {
 
     init()
 
-    // ─── Page Visibility / Background Reconnect ────────────────────────────
-    // When the user switches apps on mobile, the browser suspends JS and the
-    // socket disconnects. When they return, we reconnect and re-emit join-session
-    // so the server cancels its removal grace-period timer.
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && sessionId && participantId) {
-        const socket = socketRef.current
-        if (!socket) return
-        if (!socket.connected) {
-          console.log('Returning from background — reconnecting socket...')
-          socket.connect()
-          // Re-join after a short delay to ensure the connection is up
-          setTimeout(() => {
-            socket.emit('join-session', {
-              sessionId,
-              userId: participantId,
-              name,
-              phone,
-              email: user?.email || email
-            })
-          }, 800)
-        }
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
     return () => {
       mounted = false
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
       channel?.unsubscribe()
-      // ⚠️ Do NOT disconnect the socket here — keep it alive for background reconnect.
-      // It will be cleaned up when the participant explicitly leaves (cleanup()).
       webrtcRef.current?.cleanup()
     }
   }, [stage, sessionId, participantId])
@@ -272,79 +174,44 @@ export function ParticipantView() {
 
     setIsConnecting(true)
     try {
-      const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms));
+      // 1. Lookup session by code in Firestore
+      const sessionsRef = collection(db, 'sessions')
+      const q = query(sessionsRef, where('sessionCode', '==', sessionCode?.trim().toUpperCase()))
+      const querySnapshot = await getDocs(q)
+      
+      if (querySnapshot.empty) {
+        throw new Error('Session not found — invalid code?')
+      }
 
-      // 🌐 Step 1: Lookup session code → get the real sessionId
-      const lookupPromise = api.get(`/sessions/lookup/${sessionCode?.trim().toUpperCase()}`)
-      const res: any = await Promise.race([lookupPromise, timeout(15000)])
-
-      const realSessionId = res.data.sessionId
-      if (!realSessionId) throw new Error('Session not found — invalid code?');
-
+      const sessionDoc = querySnapshot.docs[0]
+      const realSessionId = sessionDoc.id
       setSessionId(realSessionId)
 
-      // ✅ Generate ONE consistent ID used everywhere — REST, socket, Blink SDK, and state.
-      // This is critical so mic-permission messages sent by the host actually reach this participant.
+      // 2. Generate a consistent ID
       const consistentId = user?.id || `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
-      const joinData = {
+      
+      // 3. Register in Firestore
+      const participantRef = doc(db, 'participants', consistentId)
+      await setDoc(participantRef, {
         sessionId: realSessionId,
         name: name.trim(),
         phone: phone.trim(),
         email: user ? user.email : email.trim(),
-        userId: consistentId  // ← same ID for all channels
-      }
+        userId: consistentId,
+        isConnected: 1,
+        hasMicPermission: 0,
+        isMuted: 0,
+        isSpeaking: 0,
+        handRaised: 0,
+        joinedAt: serverTimestamp()
+      })
 
-      // 🔗 Step 2: Register via REST (primary join mechanism)
-      const restJoinPromise = api.post('/sessions/join', joinData)
-      await Promise.race([restJoinPromise, timeout(15000)])
-
-      // 🔌 Step 3: Connect via Socket.io for real-time sync
-      if (!socketRef.current) {
-        socketRef.current = io(SOCKET_URL, {
-          transports: ['websocket', 'polling'],
-          timeout: 10000
-        })
-      }
-      socketRef.current.emit("join-session", joinData)  // uses same consistentId
-
-      // 🧩 Step 4 (Optional): Sync to Blink SDK
-      try {
-        await blink.db.participants.create({
-          id: consistentId,  // ← same ID
-          sessionId: realSessionId,
-          name: name.trim(),
-          phone: phone.trim(),
-          email: user ? user.email : email.trim(),
-          isConnected: 1,
-          hasMicPermission: 0,
-          isMuted: 0,
-          isSpeaking: 0,
-          handRaised: 0
-        })
-      } catch (sdkErr: any) {
-        console.warn('Blink SDK sync skipped (non-critical):', sdkErr?.message)
-      }
-
-      setParticipantId(consistentId)  // ← same ID stored in state
+      setParticipantId(consistentId)
       setStage('waiting')
       toast.success('Connected successfully! Waiting for host...')
     } catch (error: any) {
       console.error('Join Session Failed:', error)
-
-      let errorMsg = 'Connection failed'
-      if (error.message === 'Timeout') {
-        errorMsg = 'Connection timed out. The server may be waking up — try again in 30 seconds.'
-      } else if (error.response) {
-        const serverError = error.response.data?.error || error.response.statusText;
-        errorMsg = `Server Error: ${serverError}`
-      } else if (error.request) {
-        errorMsg = 'Network Error: Cannot reach backend. Check your internet connection.'
-      } else {
-        errorMsg = `Error: ${error.message}`
-      }
-
-      toast.error(errorMsg, { duration: 8000 })
+      toast.error(error.message || 'Connection failed')
     } finally {
       setIsConnecting(false)
     }
@@ -354,26 +221,14 @@ export function ParticipantView() {
     if (!participantId || !sessionId) return
     try {
       setHandRaised(true)
-      // Persist to REST backend
-      await api.post(`/sessions/${sessionId}/hand-raise`, {
-        participantId,
-        name: name.trim()
+      const participantRef = doc(db, 'participants', participantId)
+      await updateDoc(participantRef, {
+        handRaised: 1
       })
-      // Notify host via realtime channel if connected
-      if (channelRef.current) {
-        await channelRef.current.publish('webrtc', {
-          type: 'hand-raise',
-          from: participantId,
-          to: sessionId,
-          data: { name: name.trim() }
-        }, { userId: participantId })
-      }
-      // Also notify via socket for reliability
-      socketRef.current?.emit('hand-raise', { sessionId, participantId, name: name.trim() })
       toast.success('✋ Hand raised!')
     } catch (error: any) {
       setHandRaised(false)
-      toast.error('Failed to raise hand: ' + (error?.message || 'Unknown error'))
+      toast.error('Failed to raise hand')
     }
   }
 
@@ -381,21 +236,14 @@ export function ParticipantView() {
     if (!participantId || !sessionId) return
     try {
       setHandRaised(false)
-      await api.post(`/sessions/${sessionId}/hand-lower`, {
-        participantId,
-        name: name.trim()
+      const participantRef = doc(db, 'participants', participantId)
+      await updateDoc(participantRef, {
+        handRaised: 0
       })
-      if (channelRef.current) {
-        await channelRef.current.publish('webrtc', {
-          type: 'hand-lower',
-          from: participantId,
-          to: sessionId,
-          data: { name: name.trim() }
-        }, { userId: participantId })
-      }
-      socketRef.current?.emit('hand-lower', { sessionId, participantId, name: name.trim() })
       toast.info('Hand lowered')
-    } catch (error) { }
+    } catch (error) {
+      console.error('Failed to lower hand:', error)
+    }
   }
 
   const startAudioStream = async () => {
@@ -408,38 +256,35 @@ export function ParticipantView() {
       await webrtcRef.current.createPeerConnection(
         sessionId,
         true,
-        (candidate) => {
-          socketRef.current?.emit('webrtc-signaling', {
+        async (candidate) => {
+          // Send ICE Candidate via Firestore
+          await addDoc(collection(db, 'sessions', sessionId, 'signaling'), {
             type: 'ice-candidate',
             from: participantId,
             to: sessionId,
-            sessionId,
-            data: candidate
+            data: JSON.parse(JSON.stringify(candidate)),
+            timestamp: serverTimestamp()
           })
         }
       )
 
       const offer = await webrtcRef.current.createOffer(sessionId)
 
-      // Send offer immediately - timing is controlled by host-ready event
-      socketRef.current?.emit('webrtc-signaling', {
+      // Send Offer via Firestore
+      await addDoc(collection(db, 'sessions', sessionId, 'signaling'), {
         type: 'offer',
         from: participantId,
         to: sessionId,
-        sessionId,
-        data: offer
+        data: JSON.parse(JSON.stringify(offer)),
+        timestamp: serverTimestamp()
       })
 
-      await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+      const participantRef = doc(db, 'participants', participantId)
+      await updateDoc(participantRef, {
         isSpeaking: 1
-      }).catch(console.error)
-      await channelRef.current?.publish('webrtc', {
-        type: 'participant-speaking',
-        from: participantId,
-        to: sessionId,
-        data: { id: participantId, status: true }
-      }, { userId: participantId })
+      })
     } catch (error) {
+      console.error('Mic access error:', error)
       toast.error('Mic access denied')
     }
   }
@@ -448,55 +293,44 @@ export function ParticipantView() {
     webrtcRef.current?.cleanup()
     setAudioStream(null)
     if (participantId) {
-      api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+      const participantRef = doc(db, 'participants', participantId)
+      updateDoc(participantRef, {
         isSpeaking: 0
       }).catch(console.error)
-      channelRef.current?.publish('webrtc', {
-        type: 'participant-speaking',
-        from: participantId,
-        to: sessionId,
-        data: { id: participantId, status: false }
-      }, { userId: participantId })
     }
   }
 
   const toggleMute = async () => {
-    if (!participantId || !sessionId || !channelRef.current) return
+    if (!participantId || !sessionId) return
     const newMutedState = !isMuted
     setIsMuted(newMutedState)
 
-    if (newMutedState) {
-      webrtcRef.current?.muteLocalAudio()
-      await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
-        isMuted: 1,
-        isSpeaking: 0
-      }).catch(console.error)
-      await channelRef.current.publish('webrtc', {
-        type: 'participant-speaking',
-        from: participantId,
-        to: sessionId,
-        data: { id: participantId, status: false }
-      }, { userId: participantId })
-    } else {
-      webrtcRef.current?.unmuteLocalAudio()
-      await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
-        isMuted: 0,
-        isSpeaking: 1
-      }).catch(console.error)
-      await channelRef.current.publish('webrtc', {
-        type: 'participant-speaking',
-        from: participantId,
-        to: sessionId,
-        data: { id: participantId, status: true }
-      }, { userId: participantId })
+    try {
+      const participantRef = doc(db, 'participants', participantId)
+      if (newMutedState) {
+        webrtcRef.current?.muteLocalAudio()
+        await updateDoc(participantRef, {
+          isMuted: 1,
+          isSpeaking: 0
+        })
+      } else {
+        webrtcRef.current?.unmuteLocalAudio()
+        await updateDoc(participantRef, {
+          isMuted: 0,
+          isSpeaking: 1
+        })
+      }
+    } catch (error) {
+      console.error('Failed to toggle mute:', error)
     }
   }
 
   const cleanup = () => {
     stopAudioStream()
     channelRef.current?.unsubscribe()
-    if (participantId && sessionId) {
-      api.post(`/sessions/${sessionId}/participants/${participantId}/leave`).catch(console.error)
+    if (participantId) {
+      const participantRef = doc(db, 'participants', participantId)
+      deleteDoc(participantRef).catch(console.error)
     }
   }
 

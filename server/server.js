@@ -1,12 +1,9 @@
 import express from "express";
 import cors from "cors";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join, dirname } from "path";
+import { dirname } from "path";
 import { fileURLToPath } from "url";
 
 dotenv.config();
@@ -14,31 +11,11 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// ─── FILE-BASED DATABASE ─────────────────────────────────────────────────────
-const DB_FILE = join(__dirname, "db.json");
-
-function readDB() {
-    if (!existsSync(DB_FILE)) {
-        const initial = { users: [], sessions: [] };
-        writeFileSync(DB_FILE, JSON.stringify(initial, null, 2));
-        return initial;
-    }
-    try {
-        return JSON.parse(readFileSync(DB_FILE, "utf8"));
-    } catch {
-        return { users: [], sessions: [] };
-    }
-}
-
-function writeDB(data) {
-    writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-}
-
 // ─── SERVER SETUP ─────────────────────────────────────────────────────────────
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-    cors: { origin: "*", methods: ["GET", "POST", "PUT"] }
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 app.use(cors({
@@ -48,468 +25,72 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Logger
 app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
         const duration = Date.now() - start;
         console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl} [${res.statusCode}] ${duration}ms`);
-        if (res.statusCode === 400 && ["POST", "PUT"].includes(req.method)) {
-            console.log("Failed Body:", JSON.stringify(req.body, null, 2));
-        }
     });
     next();
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || "blink_secret_key_2024";
-
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
-app.get("/", (req, res) => res.json({ status: "Server running (file-based storage)" }));
+app.get("/", (req, res) => res.json({ status: "Blink Signaling Server Running (Stateless)" }));
 
-// ─── SOCKET.IO ────────────────────────────────────────────────────────────────
+// ─── SOCKET.IO SIGNALLING ─────────────────────────────────────────────────────
 io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
+    console.log("Trace: Client connected:", socket.id);
 
     socket.on("join-session", (data) => {
-        try {
-            const { sessionId, userId, name, phone, email, isHost } = data;
+        const { sessionId, userId, name, isHost } = data;
+        socket.join(sessionId);
+        socket.data.sessionId = sessionId;
+        socket.data.userId = userId;
+        socket.data.isHost = !!isHost;
 
-            // Always join the socket room first so signaling works
-            socket.join(sessionId);
-            // Track metadata for logging
-            socket.data.sessionId = sessionId;
-            socket.data.userId = userId;
-            socket.data.isHost = !!isHost;
-
-            if (isHost) {
-                console.log(`Host joined socket room for session ${sessionId}`);
-                io.to(sessionId).emit("host-ready", { sessionId });
-                return;
-            }
-
-            const db = readDB();
-            const session = db.sessions.find(s => s.sessionId === sessionId);
-            if (session) {
-                // Deduplicate: identify existing participant by userId, email, or name+phone combo
-                const existingIdx = session.participants.findIndex(p =>
-                    (userId && p.userId === userId) ||
-                    (email && p.email === email) ||
-                    (name && p.name === name && (phone && p.phone === phone))
-                );
-
-                if (existingIdx === -1) {
-                    // New participant — add them
-                    session.participants.push({
-                        id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                        userId: userId || null,
-                        name,
-                        phone: phone || "",
-                        email: email || "",
-                        isConnected: 1,
-                        hasMicPermission: 0,
-                        isMuted: 0,
-                        isSpeaking: 0,
-                        handRaised: 0,
-                        joinedAt: new Date().toISOString()
-                    });
-                    writeDB(db);
-                    console.log(`Socket Join: Added ${name} to ${sessionId}`);
-                } else {
-                    // Returning participant — reset stale state (hand, mute, speaking)
-                    const p = session.participants[existingIdx];
-                    // IMPORTANT: Only reset if they were previously disconnected or if they are explicitly re-joining
-                    p.handRaised = 0;
-                    p.handRaisedAt = null;
-                    p.isMuted = 0;
-                    p.isSpeaking = 0;
-                    p.isConnected = 1;
-                    // Update metadata in case they changed name/phone in the join form
-                    if (name) p.name = name;
-                    if (phone) p.phone = phone;
-                    if (email) p.email = email;
-
-                    writeDB(db);
-                    console.log(`Socket Rejoin: Updated and Reset state for ${name} in ${sessionId}`);
-                }
-            }
+        if (isHost) {
+            console.log(`Trace: Host ${userId} joined room ${sessionId}`);
+            io.to(sessionId).emit("host-ready", { sessionId });
+        } else {
+            console.log(`Trace: Participant ${name} (${userId}) joined room ${sessionId}`);
             io.to(sessionId).emit("participant-joined", { name, userId });
-        } catch (err) {
-            console.error("Socket error:", err.message);
         }
     });
 
     socket.on("webrtc-signaling", (data) => {
+        // Broadcast signaling messages to the specific session room
+        // data should contain { type, from, to, sessionId, data }
         io.to(data.sessionId).emit("webrtc-signaling", data);
     });
 
-    socket.on("disconnect", () => {
-        // ⚠️ Participants are NOT removed on socket disconnect.
-        // They stay in the session until they explicitly click "Leave" or are removed by the host.
-        // This prevents removal when mobile browsers go to background, receive a notification, etc.
-        const { sessionId, userId } = socket.data || {};
-        console.log(`Socket disconnected: user=${userId}, session=${sessionId} — staying in session (no auto-remove)`);
+    socket.on("hand-raise", (data) => {
+        io.to(data.sessionId).emit("hand-raise", data);
     });
-});
 
+    socket.on("hand-lower", (data) => {
+        io.to(data.sessionId).emit("hand-lower", data);
+    });
 
-// ─── SIGNUP ──────────────────────────────────────────────────────────────────
-app.post("/signup", async (req, res) => {
-    try {
-        const { name, email, phone, password, role } = req.body;
-        if (!email || !password || !name) {
-            return res.status(400).json({ error: "Missing required fields" });
+    socket.on("participant-updated", (data) => {
+        io.to(data.sessionId).emit("participant-updated", data);
+    });
+
+    socket.on("disconnect", () => {
+        const { sessionId, userId, name } = socket.data || {};
+        if (sessionId) {
+            console.log(`Trace: Client ${userId || socket.id} disconnected from session ${sessionId}`);
+            // We don't auto-remove from Firestore here; the host or explicit leave action does that.
+            // But we can broadcast a transient disconnect if needed.
+            io.to(sessionId).emit("participant-socket-disconnected", { userId, name });
         }
-
-        const db = readDB();
-        const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-        if (existing) {
-            return res.status(400).json({ error: "Email already in use" });
-        }
-
-        const hashed = await bcrypt.hash(password, 10);
-        const newUser = {
-            _id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            name,
-            email: email.toLowerCase(),
-            phone: phone || "",
-            password: hashed,
-            role: role || "participant",
-            createdAt: new Date().toISOString()
-        };
-        db.users.push(newUser);
-        writeDB(db);
-
-        console.log(`User created: ${email}`);
-        return res.json({ message: "User created", userId: newUser._id });
-    } catch (err) {
-        console.error("Signup error:", err);
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── LOGIN ────────────────────────────────────────────────────────────────────
-app.post("/login", async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        if (!email || !password) {
-            return res.status(400).json({ error: "Missing fields" });
-        }
-
-        const db = readDB();
-        const user = db.users.find(u => u.email === email.toLowerCase());
-        if (!user) {
-            return res.status(400).json({ error: "User not found" });
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ error: "Wrong password" });
-        }
-
-        const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET);
-        console.log(`User login successful: ${email}`);
-
-        return res.json({
-            token,
-            user: {
-                id: user._id,
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                phone: user.phone,
-                role: user.role
-            }
-        });
-    } catch (err) {
-        console.error("Login error:", err);
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── UPDATE PROFILE ───────────────────────────────────────────────────────────
-app.put("/users/profile", async (req, res) => {
-    try {
-        const { id, name, phone, role, email: bodyEmail } = req.body;
-        if (!id) return res.status(400).json({ error: "User ID is required" });
-
-        const db = readDB();
-        // Try multiple lookup strategies to handle different ID formats
-        let user = db.users.find(u => u._id === id || u.id === id);
-
-        // Fallback: if user not found by ID, try by email (handles old deployments)
-        if (!user && bodyEmail) {
-            user = db.users.find(u => u.email === bodyEmail.toLowerCase());
-        }
-
-        if (!user) {
-            console.log(`Profile update failed: id=${id}, email=${bodyEmail}. DB has ${db.users.length} users.`);
-            return res.status(404).json({ error: "User not found. Please log out and log in again." });
-        }
-
-        if (name) user.name = name;
-        if (phone) user.phone = phone;
-        if (role) user.role = role;
-        writeDB(db);
-
-        return res.json({
-            message: "Profile updated",
-            user: {
-                id: user._id,
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                phone: user.phone,
-                role: user.role
-            }
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── SESSION CREATE ───────────────────────────────────────────────────────────
-app.post("/sessions/create", async (req, res) => {
-    try {
-        const { sessionId, hostId, sessionCode } = req.body;
-        const db = readDB();
-
-        let session = db.sessions.find(s => s.sessionId === sessionId);
-        if (!session) {
-            session = {
-                sessionId,
-                sessionCode: sessionCode || "",
-                hostId: hostId ? String(hostId) : "anonymous",
-                participants: [],  // always start fresh
-                createdAt: new Date().toISOString()
-            };
-            db.sessions.push(session);
-        } else {
-            // Host is re-syncing an existing session (e.g., navigating back to dashboard)
-            // DO NOT clear participants here, otherwise they vanish on navigation.
-            if (sessionCode) session.sessionCode = sessionCode;
-        }
-        writeDB(db);
-
-        res.json({ message: "Session indexed", session });
-    } catch (err) {
-        console.error("Session Create Error:", err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── LOOKUP SESSION ──────────────────────────────────────────────────────────
-app.get("/sessions/lookup/:code", async (req, res) => {
-    try {
-        const { code } = req.params;
-        if (!code) return res.status(400).json({ error: "Code required" });
-
-        const db = readDB();
-        // Case-insensitive find
-        const session = db.sessions.find(s => s.sessionCode && s.sessionCode.toUpperCase() === code.toUpperCase());
-
-        if (!session) {
-            console.log(`Session lookup failed for code: ${code}`);
-            return res.status(404).json({ error: "Session not found" });
-        }
-
-        res.json({
-            sessionId: session.sessionId,
-            sessionCode: session.sessionCode
-        });
-    } catch (err) {
-        console.error("Lookup Error:", err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── JOIN SESSION (REST) ──────────────────────────────────────────────────────
-app.post("/sessions/join", async (req, res) => {
-    try {
-        const { sessionId, name, phone, email, userId } = req.body;
-        if (!sessionId) return res.status(400).json({ error: "Missing sessionId", received: req.body });
-        if (!name) return res.status(400).json({ error: "Missing name", received: req.body });
-
-        const db = readDB();
-        const session = db.sessions.find(s => s.sessionId === sessionId);
-        if (!session) {
-            console.log(`Join Failed: Session ${sessionId} not found in db.json`);
-            return res.status(404).json({ error: "Session not found" });
-        }
-
-        console.log(`Joining participant ${name} to session ${sessionId}`);
-
-        // Check if participant already exists in this session
-        const existing = session.participants.find(p =>
-            (email && p.email === email) || (userId && p.userId === userId)
-        );
-
-        if (!existing) {
-            const newParticipant = {
-                id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                userId: userId || null,
-                name,
-                phone: phone || "",
-                email: email || "",
-                isConnected: 1,
-                hasMicPermission: 0,
-                isMuted: 0,
-                isSpeaking: 0,
-                handRaised: 0,
-                joinedAt: new Date().toISOString()
-            };
-            session.participants.push(newParticipant);
-            writeDB(db);
-            console.log(`REST Join: Added ${name} to ${sessionId}`);
-        }
-
-        res.json({ message: "Joined successfully", sessionId: session.sessionId });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── GET PARTICIPANTS ─────────────────────────────────────────────────────────
-app.get("/sessions/:sessionId/participants", async (req, res) => {
-    try {
-        const db = readDB();
-        const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
-        if (!session) return res.status(404).json({ error: "Session not found" });
-        // Filter out the host (they join by userId === sessionId or name === 'Host')
-        const participants = (session.participants || []).filter(p =>
-            p.userId !== session.sessionId && p.name !== 'Host'
-        );
-        res.json({ participants });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── RAISE HAND ───────────────────────────────────────────────────────────────
-app.post("/sessions/:sessionId/hand-raise", async (req, res) => {
-    try {
-        const { participantId, name } = req.body;
-        const db = readDB();
-        const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
-        if (!session) return res.status(404).json({ error: "Session not found" });
-
-        const participant = session.participants.find(p => p.id === participantId || p.userId === participantId || (name && p.name === name));
-        if (participant) {
-            participant.handRaised = 1;
-            participant.handRaisedAt = new Date().toISOString();
-            writeDB(db);
-        }
-
-        // Broadcast via socket
-        io.to(req.params.sessionId).emit("hand-raise", { participantId, name });
-        res.json({ message: "Hand raised" });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── LOWER HAND ───────────────────────────────────────────────────────────────
-app.post("/sessions/:sessionId/hand-lower", async (req, res) => {
-    try {
-        const { participantId, name } = req.body;
-        const db = readDB();
-        const session = db.sessions.find(s => s.sessionId === req.params.sessionId);
-        if (!session) return res.status(404).json({ error: "Session not found" });
-
-        const participant = session.participants.find(p => p.id === participantId || p.userId === participantId || (name && p.name === name));
-        if (participant) {
-            participant.handRaised = 0;
-            participant.handRaisedAt = null;
-            writeDB(db);
-        }
-
-        io.to(req.params.sessionId).emit("hand-lower", { participantId, name });
-        res.json({ message: "Hand lowered" });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ─── UPDATE PARTICIPANT STATE ────────────────────────────────────────────────
-app.post("/sessions/:sessionId/participants/:participantId/update", async (req, res) => {
-    try {
-        const { sessionId, participantId } = req.params;
-        const updates = req.body; // e.g., { hasMicPermission: 1, isMuted: 0 }
-
-        const db = readDB();
-        const session = db.sessions.find(s => s.sessionId === sessionId);
-        if (!session) return res.status(404).json({ error: "Session not found" });
-
-        const participant = session.participants.find(p => p.id === participantId);
-        if (!participant) return res.status(404).json({ error: "Participant not found" });
-
-        // Apply updates
-        Object.keys(updates).forEach(key => {
-            participant[key] = updates[key];
-        });
-
-        writeDB(db);
-
-        // Broadcast the update to all clients in the session
-        io.to(sessionId).emit("participant-updated", { participantId, updates });
-
-        res.json({ message: "Participant updated", participant });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post("/sessions/:sessionId/participants/:participantId/remove", async (req, res) => {
-    try {
-        const { sessionId, participantId } = req.params;
-        const db = readDB();
-        const session = db.sessions.find(s => s.sessionId === sessionId);
-        if (!session) return res.status(404).json({ error: "Session not found" });
-
-        session.participants = session.participants.filter(p => p.id !== participantId);
-        writeDB(db);
-
-        io.to(sessionId).emit("participant-removed", { participantId });
-        res.json({ message: "Participant removed" });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post("/sessions/:sessionId/participants/:userId/leave", async (req, res) => {
-    try {
-        const { sessionId, userId } = req.params;
-        const db = readDB();
-        const session = db.sessions.find(s => s.sessionId === sessionId);
-        if (!session) return res.status(404).json({ error: "Session not found" });
-
-        const before = session.participants.length;
-        session.participants = session.participants.filter(p => p.userId !== userId);
-
-        if (session.participants.length !== before) {
-            writeDB(db);
-            console.log(`Explicit Leave: Removed ${userId} from ${sessionId}`);
-            io.to(sessionId).emit("participant-left", { userId });
-        }
-
-        res.json({ message: "Left successfully" });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.get("/participants", async (req, res) => {
-    try {
-        const db = readDB();
-        // Return all participants across all sessions, flattened
-        const allParticipants = db.sessions.flatMap(s =>
-            (s.participants || []).map(p => ({ ...p, sessionId: s.sessionId }))
-        );
-        res.json({ participants: allParticipants });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    });
 });
 
 // ─── START SERVER ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;
-// Bind to 0.0.0.0 to ensure it accepts connections from the local network (LAN)
-httpServer.listen(PORT, "0.0.0.0", () => console.log(`Server running on port ${PORT} — using file-based storage (db.json)`));
+httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`\x1b[32m%s\x1b[0m`, `✔ Blink Signaling Server is live on port ${PORT}`);
+    console.log(`\x1b[36m%s\x1b[0m`, `ℹ Database: Firebase Firestore (External)`);
+    console.log(`\x1b[36m%s\x1b[0m`, `ℹ Mode: Stateless Real-time Signaling`);
+});

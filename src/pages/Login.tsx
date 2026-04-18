@@ -1,6 +1,6 @@
-import { useState } from "react"
-import { auth } from "@/lib/firebase"
+import { auth, db } from "@/lib/firebase"
 import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,13 +32,18 @@ export default function Login() {
             const userCredential = await signInWithEmailAndPassword(auth, email.toLowerCase(), password)
             const user = userCredential.user
 
-            // 2. Fetch specific token if needed by the backend or store user info
-            // For now, we mimic the existing logic by storing the UID as token or getting a custom token
-            localStorage.setItem("token", await user.getIdToken())
-            localStorage.setItem("user", JSON.stringify({
-                uid: user.uid,
-                email: user.email
-            }))
+            // 2. Fetch profile from Firestore
+            const token = await user.getIdToken()
+            const userDoc = await getDoc(doc(db, "users", user.uid))
+            const userData = userDoc.exists() ? userDoc.data() : { 
+              uid: user.uid, 
+              email: user.email,
+              name: user.displayName || 'Guest',
+              role: 'participant'
+            }
+
+            localStorage.setItem("token", token)
+            localStorage.setItem("user", JSON.stringify(userData))
 
             toast.success("Welcome back!")
             window.location.href = redirectPath

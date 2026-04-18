@@ -1,36 +1,30 @@
-import { useState, useEffect } from 'react'
-import { Users, Search, RefreshCw, Calendar, Phone, Mail, Hash } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import api from '@/lib/api'
-import { motion } from 'framer-motion'
-import { toast } from 'sonner'
+import { db } from '@/lib/firebase'
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore'
 
 export function Participants() {
     const [participants, setParticipants] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
 
-    const fetchParticipants = async () => {
-        setLoading(true)
-        try {
-            const res = await api.get('/participants')
-            setParticipants(res.data.participants || [])
-        } catch (err) {
-            console.error('Failed to fetch participants:', err)
-            toast.error('Failed to load participants')
-        } finally {
-            setLoading(false)
-        }
-    }
-
     useEffect(() => {
-        fetchParticipants()
-        // Poll every 10 seconds for updates
-        const timer = setInterval(fetchParticipants, 10000)
-        return () => clearInterval(timer)
+        const participantsRef = collection(db, 'participants')
+        const q = query(participantsRef, orderBy('joinedAt', 'desc'))
+        
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                joinedAt: doc.data().joinedAt?.toDate?.() || new Date()
+            }))
+            setParticipants(data)
+            setLoading(false)
+        }, (error) => {
+            console.error('Firestore participants sync error:', error)
+            toast.error('Failed to sync participants')
+            setLoading(false)
+        })
+
+        return () => unsubscribe()
     }, [])
 
     const filtered = participants.filter(p =>

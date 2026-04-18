@@ -1,27 +1,18 @@
+import { db } from '@/lib/firebase'
+import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, deleteDoc, getDoc, serverTimestamp, addDoc } from 'firebase/firestore'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Mic, MicOff, Users, Radio, LogOut, Share2, Hand, UserX } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import { QRCodeSVG } from 'qrcode.react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { blink as blinkSDK } from '@/lib/blink'
 import { WebRTCManager } from '@/lib/webrtc'
-import { Participant, WebRTCMessage } from '@/types'
-import { Mic, MicOff, UserX, Users, Radio, LogOut, Share2, Hand, Volume2, Headphones } from 'lucide-react'
-import { toast } from 'sonner'
-import { motion, AnimatePresence } from 'framer-motion'
-import AudioWaveform from '@/components/AudioWaveform'
-import api from '@/lib/api'
-import { io } from 'socket.io-client'
-import type { Socket } from 'socket.io-client'
+import { AudioWaveform } from '@/components/AudioWaveform'
+import { Participant } from '@/types'
 
 // Cast blink to any to avoid TS errors on dynamic SDK methods
 const blink = blinkSDK as any
-
-// Auto-detect local network testing
-const isLocalNetwork = window.location.hostname === 'localhost' || /^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(window.location.hostname);
-const defaultSocketUrl = isLocalNetwork ? `http://${window.location.hostname}:5001` : 'https://blink-3.onrender.com';
-const SOCKET_URL = import.meta.env.VITE_API_URL || defaultSocketUrl;
 
 const container: any = {
   hidden: { opacity: 0 },
@@ -49,7 +40,6 @@ export function HostDashboard() {
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const webrtcRef = useRef<WebRTCManager | null>(null)
   const channelRef = useRef<any>(null)
-  const socketRef = useRef<Socket | null>(null)
 
   // Construct join URL using current origin
   const joinUrl = `${window.location.origin}/join/${sessionCode}`
@@ -62,51 +52,53 @@ export function HostDashboard() {
 
     const init = async () => {
       try {
-        let sessionCode = ''
+        let sessionCodeVal = ''
 
-        // 1. Try to get session from SDK (first choice)
-        try {
-          const session = await blink.db.sessions.get(sessionId)
-          if (session) {
-            sessionCode = session.sessionCode
-            setSessionCode(session.sessionCode)
+        // 1. Get/Initialize session in Firestore
+        const sessionRef = doc(db, 'sessions', sessionId)
+        const sessionSnap = await getDoc(sessionRef)
+        
+        if (sessionSnap.exists()) {
+          const data = sessionSnap.data()
+          sessionCodeVal = data.sessionCode
+          setSessionCode(data.sessionCode)
+        } else {
+          // If session doesn't exist in Firestore, we should probably redirect or create it
+          // For now, let's try the SDK fallback
+          try {
+            const session = await blink.db.sessions.get(sessionId)
+            if (session) {
+              sessionCodeVal = session.sessionCode
+              setSessionCode(session.sessionCode)
+              // Sync to Firestore
+              await setDoc(sessionRef, {
+                sessionId,
+                sessionCode: session.sessionCode,
+                isActive: 1,
+                createdAt: serverTimestamp()
+              })
+            }
+          } catch (e) {
+            console.warn('SDK Session lookup failed:', e)
           }
-        } catch (e) {
-          console.warn('SDK Session lookup failed:', e)
-        }
-
-        // 2. Sync/Initialize session on our backend (Mandatory)
-        const storedUser = localStorage.getItem('user')
-        const hostId = storedUser ? JSON.parse(storedUser).id : 'anonymous'
-
-        try {
-          const res = await api.post('/sessions/create', {
-            sessionId: sessionId,
-            sessionCode: sessionCode, // May be empty if SDK failed
-            hostId
-          })
-
-          // If we didn't have a code from SDK, get it from our backend
-          if (!sessionCode && res.data.session?.sessionCode) {
-            setSessionCode(res.data.session.sessionCode)
-          }
-          console.log('Session synced to backend:', sessionId)
-        } catch (syncErr: any) {
-          console.warn('Backend sync failed (non-critical):', syncErr?.message)
         }
 
         if (!mounted) return
 
-        const fetchParticipants = async () => {
-          try {
-            const res = await api.get(`/sessions/${sessionId}/participants`)
-            if (mounted) setParticipants(res.data.participants)
-          } catch (err) {
-            console.error("Failed to fetch participants:", err)
-          }
-        }
-
-        await fetchParticipants()
+        // 2. Continuous Firestore listener for participants
+        const participantsRef = collection(db, 'participants')
+        const q = query(participantsRef, where('sessionId', '==', sessionId))
+        
+        const unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+          if (!mounted) return
+          const list = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Participant[]
+          
+          // Filter out host if needed (though host shouldn't be in participants collection)
+          setParticipants(list.filter(p => !p.isHost))
+        })
 
         webrtcRef.current = new WebRTCManager(`session-${sessionId}`)
         channel = blink.realtime.channel(`session-${sessionId}`)
@@ -114,62 +106,33 @@ export function HostDashboard() {
 
         await channel.subscribe({ userId: sessionId })
 
-        // Initialize Socket.io for secondary (more reliable) signaling
-        const socket = io(SOCKET_URL);
-        socketRef.current = socket;
-        socket.emit('join-session', { sessionId, userId: sessionId, name: 'Host', isHost: true });
+        // 3. Signaling listener via Firestore
+        const signalingRef = collection(db, 'sessions', sessionId, 'signaling')
+        const sigQ = query(signalingRef, where('to', '==', sessionId))
+        
+        const unsubscribeSignaling = onSnapshot(sigQ, async (snapshot) => {
+          if (!mounted) return
+          for (const change of snapshot.docChanges()) {
+            if (change.type === 'added') {
+              const message = change.doc.data()
+              const participantId = message.from
+              const msgId = change.doc.id
 
-        // Listen for signaling over Socket.io
-        socket.on('webrtc-signaling', async (message: any) => {
-          if (!mounted || message.to !== sessionId) return
-          const participantId = message.from
-
-          try {
-            switch (message.type) {
-              case 'offer':
-                await handleWebRTCOffer(participantId, message.data)
-                break
-              case 'ice-candidate':
-                if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(participantId, message.data)
-                break
+              try {
+                switch (message.type) {
+                  case 'offer':
+                    await handleWebRTCOffer(participantId, message.data)
+                    break
+                  case 'ice-candidate':
+                    if (webrtcRef.current) await webrtcRef.current.handleIceCandidate(participantId, message.data)
+                    break
+                }
+                // Cleanup processed signal
+                await deleteDoc(doc(db, 'sessions', sessionId, 'signaling', msgId))
+              } catch (err) {
+                console.error('Signaling processing error:', err)
+              }
             }
-          } catch (err) {
-            console.error('Socket signaling error:', err)
-          }
-        })
-
-        // Real-time participant list updates
-        socket.on('participant-joined', () => {
-          if (mounted) fetchParticipants()
-        })
-        socket.on('participant-left', ({ userId: leftId }: any) => {
-          if (mounted) {
-            setParticipants(prev => prev.filter(p => p.userId !== leftId))
-            setRemoteStreams(prev => {
-              const next = new Map(prev)
-              // Find participant by userId and remove their stream
-              const [peerId] = [...next.entries()].find(([id]) => id === leftId) || []
-              if (peerId) next.delete(peerId)
-              return next
-            })
-          }
-        })
-        socket.on('hand-raise', ({ participantId }: any) => {
-          if (mounted) {
-            setParticipants(prev => prev.map(p =>
-              (p.id === participantId || p.userId === participantId)
-                ? { ...p, handRaised: 1 }
-                : p
-            ))
-          }
-        })
-        socket.on('hand-lower', ({ participantId }: any) => {
-          if (mounted) {
-            setParticipants(prev => prev.map(p =>
-              (p.id === participantId || p.userId === participantId)
-                ? { ...p, handRaised: 0 }
-                : p
-            ))
           }
         })
 
@@ -178,13 +141,14 @@ export function HostDashboard() {
           await webrtcRef.current.createPeerConnection(
             participantId,
             false,
-            (candidate) => {
-              socket.emit('webrtc-signaling', {
+            async (candidate) => {
+              // Send ICE Candidate via Firestore
+              await addDoc(collection(db, 'sessions', sessionId, 'signaling'), {
                 type: 'ice-candidate',
                 from: sessionId,
                 to: participantId,
-                sessionId,
-                data: candidate
+                data: JSON.parse(JSON.stringify(candidate)),
+                timestamp: serverTimestamp()
               })
             },
             (stream) => {
@@ -198,54 +162,21 @@ export function HostDashboard() {
           )
           await webrtcRef.current.handleOffer(participantId, offer)
           const answer = await webrtcRef.current.createAnswer(participantId)
-          socket.emit('webrtc-signaling', {
+          
+          // Send Answer via Firestore
+          await addDoc(collection(db, 'sessions', sessionId, 'signaling'), {
             type: 'answer',
             from: sessionId,
             to: participantId,
-            sessionId,
-            data: answer
+            data: JSON.parse(JSON.stringify(answer)),
+            timestamp: serverTimestamp()
           })
         }
 
-        channel.onMessage(async (msg: any) => {
-          if (!mounted || msg.type !== 'webrtc') return
-          const message = msg.data as any
-          if (message.to !== sessionId) return
-          const participantId = message.from
-
-          try {
-            switch (message.type) {
-              case 'join-session':
-                fetchParticipants()
-                // No toast — participant list updates silently
-                break
-              case 'hand-raise':
-                try {
-                  await api.post(`/sessions/${sessionId}/hand-raise`, {
-                    participantId: message.from,
-                    name: message.data?.name
-                  })
-                } catch { }
-                refreshParticipants()
-                toast.info(`✋ ${message.data?.name || 'A participant'} raised their hand`)
-                break
-              case 'hand-lower':
-                try {
-                  await api.post(`/sessions/${sessionId}/hand-lower`, {
-                    participantId: message.from,
-                    name: message.data?.name
-                  })
-                } catch { }
-                refreshParticipants()
-                break
-              case 'participant-speaking':
-                updateSpeakingStatus(participantId, message.data.status)
-                break
-            }
-          } catch (error) {
-            console.error('Error handling channel message:', error)
-          }
-        })
+        return () => {
+          unsubscribeFirestore()
+          unsubscribeSignaling()
+        }
       } catch (error) {
         console.error('Failed to initialize host dashboard:', error)
         toast.error('Failed to load session')
@@ -259,70 +190,54 @@ export function HostDashboard() {
     }
 
     setupSessionPersistence()
-    init()
-    const interval = setInterval(refreshParticipants, 3000)
+    const cleanupFirestore = init()
 
     return () => {
       mounted = false
-      clearInterval(interval)
+      cleanupFirestore.then(unsub => unsub?.())
       channel?.unsubscribe()
-      socketRef.current?.disconnect()
       webrtcRef.current?.cleanup()
     }
   }, [sessionId])
 
-  const refreshParticipants = async () => {
-    if (!sessionId) return
-    try {
-      const res = await api.get(`/sessions/${sessionId}/participants`)
-      const storedUser = localStorage.getItem('user')
-      const hostId = storedUser ? JSON.parse(storedUser).id : null
-      const filtered = res.data.participants.filter((p: any) => p.userId !== hostId && !p.isHost)
-      setParticipants(filtered)
-    } catch (error) {
-      console.error('Failed to refresh participants:', error)
-    }
-  }
-
   const updateSpeakingStatus = async (participantId: string, isSpeaking: boolean) => {
     try {
-      await api.post(`/sessions/${sessionId}/participants/${participantId}/update`, {
+      const participantRef = doc(db, 'participants', participantId)
+      await updateDoc(participantRef, {
         isSpeaking: isSpeaking ? 1 : 0
       })
-      refreshParticipants()
     } catch (error) {
       console.error('Failed to update speaking status:', error)
     }
   }
 
+
   const grantMicPermission = async (participant: Participant) => {
     try {
-      await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
+      const participantRef = doc(db, 'participants', participant.id)
+      await updateDoc(participantRef, {
         hasMicPermission: 1,
         handRaised: 0
       })
 
-      // Use the consistent userId (matches what participant stores in state)
       const targetId = participant.userId || participant.id
 
-      // Primary: send via Socket.io (fast, reliable)
-      socketRef.current?.emit('webrtc-signaling', {
-        type: 'mic-permission',
-        from: sessionId,
-        to: targetId,
+      // Broadcast update via Socket
+      socketRef.current?.emit('participant-updated', {
         sessionId,
-        data: { granted: true }
+        participantId: participant.id,
+        updates: { hasMicPermission: 1, handRaised: 0 }
       })
 
-      // Fallback: also send via Blink channel
-      await channelRef.current?.publish('webrtc', {
+      // Send permission signal via Firestore
+      await addDoc(collection(db, 'sessions', sessionId!, 'signaling'), {
         type: 'mic-permission',
         from: sessionId,
         to: targetId,
-        data: { granted: true }
-      }, { userId: sessionId })
+        data: { granted: true },
+        timestamp: serverTimestamp()
+      })
 
-      refreshParticipants()
       toast.success(`Mic permission granted to ${participant.name}`)
     } catch (error) {
       console.error('Failed to grant permission:', error)
@@ -332,7 +247,8 @@ export function HostDashboard() {
 
   const denyMicPermission = async (participant: Participant) => {
     try {
-      await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
+      const participantRef = doc(db, 'participants', participant.id)
+      await updateDoc(participantRef, {
         hasMicPermission: 0,
         handRaised: 0,
         isSpeaking: 0
@@ -340,23 +256,16 @@ export function HostDashboard() {
 
       const targetId = participant.userId || participant.id
 
-      socketRef.current?.emit('webrtc-signaling', {
+      // Send revocation signal via Firestore
+      await addDoc(collection(db, 'sessions', sessionId!, 'signaling'), {
         type: 'mic-permission',
         from: sessionId,
         to: targetId,
-        sessionId,
-        data: { granted: false }
+        data: { granted: false },
+        timestamp: serverTimestamp()
       })
 
-      await channelRef.current?.publish('webrtc', {
-        type: 'mic-permission',
-        from: sessionId,
-        to: targetId,
-        data: { granted: false }
-      }, { userId: sessionId })
-
       webrtcRef.current?.closePeerConnection(targetId)
-      refreshParticipants()
       toast.success(`Mic permission revoked from ${participant.name}`)
     } catch (error) {
       console.error('Failed to deny permission:', error)
@@ -366,11 +275,10 @@ export function HostDashboard() {
 
   const lowerParticipantHand = async (participant: Participant) => {
     try {
-      await api.post(`/sessions/${sessionId}/hand-lower`, {
-        participantId: participant.id,
-        name: participant.name
+      const participantRef = doc(db, 'participants', participant.id)
+      await updateDoc(participantRef, {
+        handRaised: 0
       })
-      refreshParticipants()
       toast.info(`Lowered hand for ${participant.name}`)
     } catch (error) {
       console.error('Failed to lower hand:', error)
@@ -380,13 +288,13 @@ export function HostDashboard() {
 
   const muteParticipant = async (participant: Participant) => {
     try {
-      await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
+      const participantRef = doc(db, 'participants', participant.id)
+      await updateDoc(participantRef, {
         isMuted: 1
       })
 
       const targetId = participant.userId || participant.id
 
-      // Primary: socket (reliable)
       socketRef.current?.emit('webrtc-signaling', {
         type: 'mute',
         from: sessionId,
@@ -394,15 +302,7 @@ export function HostDashboard() {
         sessionId,
         data: {}
       })
-      // Fallback: Blink channel
-      await channelRef.current?.publish('webrtc', {
-        type: 'mute',
-        from: sessionId,
-        to: targetId,
-        data: {}
-      }, { userId: sessionId })
 
-      refreshParticipants()
       toast.success(`Muted ${participant.name}`)
     } catch (error) {
       console.error('Failed to mute participant:', error)
@@ -412,7 +312,8 @@ export function HostDashboard() {
 
   const unmuteParticipant = async (participant: Participant) => {
     try {
-      await api.post(`/sessions/${sessionId}/participants/${participant.id}/update`, {
+      const participantRef = doc(db, 'participants', participant.id)
+      await updateDoc(participantRef, {
         isMuted: 0
       })
 
@@ -425,14 +326,7 @@ export function HostDashboard() {
         sessionId,
         data: {}
       })
-      await channelRef.current?.publish('webrtc', {
-        type: 'unmute',
-        from: sessionId,
-        to: targetId,
-        data: {}
-      }, { userId: sessionId })
 
-      refreshParticipants()
       toast.success(`Unmuted ${participant.name}`)
     } catch (error) {
       console.error('Failed to unmute participant:', error)
@@ -442,17 +336,19 @@ export function HostDashboard() {
 
   const removeParticipant = async (participant: Participant) => {
     try {
-      await api.post(`/sessions/${sessionId}/participants/${participant.id}/remove`)
+      const participantRef = doc(db, 'participants', participant.id)
+      await deleteDoc(participantRef)
 
-      await channelRef.current?.publish('webrtc', {
+      const targetId = participant.userId || participant.id
+      
+      socketRef.current?.emit('webrtc-signaling', {
         type: 'remove',
         from: sessionId,
-        to: participant.id,
+        to: targetId,
         data: {}
-      }, { userId: sessionId })
+      })
 
-      webrtcRef.current?.closePeerConnection(participant.id)
-      refreshParticipants()
+      webrtcRef.current?.closePeerConnection(targetId)
       toast.success(`Removed ${participant.name}`)
     } catch (error) {
       console.error('Failed to remove participant:', error)
@@ -462,26 +358,26 @@ export function HostDashboard() {
 
   const endSession = async () => {
     try {
-      try {
-        await channelRef.current?.publish('webrtc', {
-          type: 'session-ended',
-          from: sessionId!,
-          to: 'all',
-          data: {}
-        }, { userId: sessionId! })
-      } catch (e) {
-        console.error('Failed to notify participants:', e)
-      }
+      // 1. Mark session as inactive in Firestore
+      const sessionRef = doc(db, 'sessions', sessionId!)
+      await updateDoc(sessionRef, {
+        isActive: 0,
+        endedAt: serverTimestamp()
+      })
 
-      await blink.db.sessions.update(sessionId!, { isActive: 0, endedAt: new Date().toISOString() })
+      // 2. Clear participants for this session
+      const participantsRef = collection(db, 'participants')
+      const q = query(participantsRef, where('sessionId', '==', sessionId))
+      const snapshot = await onSnapshot(q, (snap) => {
+        snap.docs.forEach(async (doc) => {
+          await deleteDoc(doc.ref)
+        })
+      })
 
-      const activeParticipants = participants.filter(p => Number(p.isConnected) === 1)
-      for (const p of activeParticipants) {
-        try { await blink.db.participants.update(p.id, { isConnected: 0 }) } catch (e) { }
-      }
+      // 3. Notify participants via socket
+      socketRef.current?.emit('session-ended', { sessionId })
 
       webrtcRef.current?.cleanup()
-      channelRef.current?.unsubscribe()
       localStorage.removeItem('activeSessionId')
       toast.success('Session ended')
       navigate('/', { replace: true })
