@@ -231,14 +231,8 @@ function AppContent() {
               <Route path="/participants" element={<Participants />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/host/:sessionId" element={<HostDashboard />} />
-              <Route
-                path="/join/:sessionCode"
-                element={
-                  token
-                    ? <ParticipantView />
-                    : <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />
-                }
-              />
+              {/* Participant join page is public - no login required for audience members */}
+              <Route path="/join/:sessionCode" element={<ParticipantView />} />
             </Routes>
           </motion.div>
         </AnimatePresence>
